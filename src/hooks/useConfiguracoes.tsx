@@ -34,6 +34,11 @@ export interface BusinessSettings {
   timezone: string;
   show_employee_commission: boolean;
   show_service_values_to_employees: boolean;
+  whatsapp_auto_register_enabled: boolean;
+  whatsapp_followup_enabled: boolean;
+  whatsapp_followup_days: number;
+  whatsapp_followup_message: string;
+  evolution_instance_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +91,12 @@ export const useBusinessSettings = () => {
           timezone: "America/Sao_Paulo",
           show_employee_commission: true,
           show_service_values_to_employees: false,
+          whatsapp_auto_register_enabled: false,
+          whatsapp_followup_enabled: false,
+          whatsapp_followup_days: 15,
+          whatsapp_followup_message:
+            "Oi {{nome}}! Já faz {{dias}} dias desde a sua última lavagem. Que tal agendar um horário pra deixar o carro novo de novo? 🚗✨",
+          evolution_instance_name: null,
           created_at: "",
           updated_at: "",
         } as BusinessSettings;
@@ -133,6 +144,10 @@ export const useSaveBusinessSettings = () => {
         timezone: settings.timezone,
         show_employee_commission: settings.show_employee_commission,
         show_service_values_to_employees: settings.show_service_values_to_employees,
+        whatsapp_auto_register_enabled: settings.whatsapp_auto_register_enabled,
+        whatsapp_followup_enabled: settings.whatsapp_followup_enabled,
+        whatsapp_followup_days: settings.whatsapp_followup_days,
+        whatsapp_followup_message: settings.whatsapp_followup_message,
       };
 
       if (existing) {

@@ -3,6 +3,7 @@ import { useBusinessSettings, useSaveBusinessSettings, WorkingHours } from "@/ho
 import { useAuth } from "@/hooks/useAuth";
 import { useFixedExpenses, useCreateFixedExpense, useUpdateFixedExpense, useDeleteFixedExpense, FixedExpense } from "@/hooks/useFixedExpenses";
 import { PublicBookingSettings } from "@/components/settings/PublicBookingSettings";
+import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -336,7 +337,7 @@ const ConfiguracoesPage = () => {
       </div>
 
       <Tabs defaultValue="business" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
           <TabsTrigger value="business" className="flex items-center gap-2">
             <Building2 className="w-4 h-4" />
             <span className="hidden sm:inline">Estabelecimento</span>
@@ -348,6 +349,10 @@ const ConfiguracoesPage = () => {
           <TabsTrigger value="public-booking" className="flex items-center gap-2">
             <Link2 className="w-4 h-4" />
             <span className="hidden sm:inline">Link Público</span>
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
           <TabsTrigger value="expenses" className="flex items-center gap-2">
             <Wallet className="w-4 h-4" />
@@ -802,6 +807,11 @@ const ConfiguracoesPage = () => {
         {/* Public Booking Tab */}
         <TabsContent value="public-booking" className="space-y-6">
           <PublicBookingSettings settings={settings} onUpdate={refetchSettings} />
+        </TabsContent>
+
+        {/* WhatsApp Tab */}
+        <TabsContent value="whatsapp" className="space-y-6">
+          <WhatsAppSettings settings={settings} onUpdate={refetchSettings} />
         </TabsContent>
 
         {/* Fixed Expenses Tab */}

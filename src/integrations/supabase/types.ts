@@ -211,6 +211,7 @@ export type Database = {
           default_appointment_duration: number | null
           document: string | null
           email: string | null
+          evolution_instance_name: string | null
           id: string
           instagram: string | null
           logo_url: string | null
@@ -233,6 +234,10 @@ export type Database = {
           user_id: string
           website: string | null
           whatsapp: string | null
+          whatsapp_auto_register_enabled: boolean
+          whatsapp_followup_days: number
+          whatsapp_followup_enabled: boolean
+          whatsapp_followup_message: string
           working_hours: Json | null
           zip_code: string | null
         }
@@ -248,6 +253,7 @@ export type Database = {
           default_appointment_duration?: number | null
           document?: string | null
           email?: string | null
+          evolution_instance_name?: string | null
           id?: string
           instagram?: string | null
           logo_url?: string | null
@@ -270,6 +276,10 @@ export type Database = {
           user_id: string
           website?: string | null
           whatsapp?: string | null
+          whatsapp_auto_register_enabled?: boolean
+          whatsapp_followup_days?: number
+          whatsapp_followup_enabled?: boolean
+          whatsapp_followup_message?: string
           working_hours?: Json | null
           zip_code?: string | null
         }
@@ -285,6 +295,7 @@ export type Database = {
           default_appointment_duration?: number | null
           document?: string | null
           email?: string | null
+          evolution_instance_name?: string | null
           id?: string
           instagram?: string | null
           logo_url?: string | null
@@ -307,6 +318,10 @@ export type Database = {
           user_id?: string
           website?: string | null
           whatsapp?: string | null
+          whatsapp_auto_register_enabled?: boolean
+          whatsapp_followup_days?: number
+          whatsapp_followup_enabled?: boolean
+          whatsapp_followup_message?: string
           working_hours?: Json | null
           zip_code?: string | null
         }
@@ -404,6 +419,57 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_followups: {
+        Row: {
+          appointment_id: string | null
+          client_id: string
+          created_at: string
+          due_date: string
+          id: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          client_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          client_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_followups_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_followups_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
