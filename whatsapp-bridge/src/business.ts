@@ -5,73 +5,61 @@ export interface Business {
   whatsapp_auto_register_enabled: boolean;
   timezone: string | null;
   plan_slug: string | null;
+  subscription_active: boolean;
 }
 
 export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
-  const { data: authorized } = await supabaseAdmin
+  const { data: authorized, error } = await supabaseAdmin
     .from("whatsapp_authorized_numbers")
     .select("user_id")
     .eq("phone", phone)
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!authorized?.user_id) return null;
+  if (error || !authorized?.user_id) return null;
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("id, is_active")
-    .eq("id", authorized.user_id)
-    .maybeSingle();
+  const userId = authorized.user_id;
 
-  if (!profile?.is_active) return null;
+  const [{ data: profile }, { data: subscription }, { data: settings }] = await Promise.all([
+    supabaseAdmin.from("profiles").select("is_active").eq("id", userId).maybeSingle(),
+    supabaseAdmin.from("subscriptions").select("status, expires_at, plan_id").eq("user_id", userId).maybeSingle(),
+    supabaseAdmin.from("business_settings").select("user_id, whatsapp_auto_register_enabled, timezone").eq("user_id", userId).maybeSingle(),
+  ]);
 
-  const { data: subscription } = await supabaseAdmin
-    .from("subscriptions")
-    .select("status, expires_at, plan_id")
-    .eq("user_id", authorized.user_id)
-    .maybeSingle();
+  if (!profile || !settings) return null;
 
-  if (!subscription || !["active", "trial"].includes(subscription.status)) return null;
-  if (subscription.expires_at && new Date(subscription.expires_at) < new Date()) return null;
+  const subscriptionActive =
+    profile.is_active === true &&
+    !!subscription &&
+    ["active", "trial"].includes(subscription.status) &&
+    (!subscription.expires_at || new Date(subscription.expires_at) >= new Date());
 
   let planSlug: string | null = null;
-  if (subscription.plan_id) {
-    const { data: plan } = await supabaseAdmin
-      .from("saas_plans")
-      .select("slug")
-      .eq("id", subscription.plan_id)
-      .maybeSingle();
+  if (subscription?.plan_id) {
+    const { data: plan } = await supabaseAdmin.from("saas_plans").select("slug").eq("id", subscription.plan_id).maybeSingle();
     planSlug = plan?.slug ?? null;
   }
 
-  const { data: settings } = await supabaseAdmin
-    .from("business_settings")
-    .select("user_id, whatsapp_auto_register_enabled, timezone")
-    .eq("user_id", authorized.user_id)
-    .maybeSingle();
-
-  if (!settings) return null;
-  return { ...settings, plan_slug: planSlug };
+  return {
+    ...settings,
+    plan_slug: planSlug,
+    subscription_active: subscriptionActive,
+  };
 }
 
 export async function findBusinessByInstance(instanceName: string): Promise<Business | null> {
-  const { data } = await supabaseAdmin
-    .from("business_settings")
-    .select("user_id")
-    .eq("evolution_instance_name", instanceName)
-    .maybeSingle();
-  return data?.user_id ? findBusinessByUserId(data.user_id) : null;
-}
+  const { data } = await supabaseAdmin.from("business_settings").select("user_id").eq("evolution_instance_name", instanceName).maybeSingle();
+  if (!data?.user_id) return null;
 
-async function findBusinessByUserId(userId: string): Promise<Business | null> {
-  const { data: authorized } = await supabaseAdmin
+  const { data: number } = await supabaseAdmin
     .from("whatsapp_authorized_numbers")
-    .select("user_id")
-    .eq("user_id", userId)
+    .select("phone")
+    .eq("user_id", data.user_id)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
-  return authorized?.user_id ? findBusinessByAuthorizedPhone((await supabaseAdmin.from("whatsapp_authorized_numbers").select("phone").eq("user_id", userId).eq("is_active", true).limit(1).maybeSingle()).data?.phone ?? "") : null;
+
+  return number?.phone ? findBusinessByAuthorizedPhone(number.phone) : null;
 }
 
 export async function getClients(userId: string) {
