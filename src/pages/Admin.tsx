@@ -370,6 +370,7 @@ const Admin = () => {
                               <SelectItem value="free">Gratuito</SelectItem>
                               <SelectItem value="basic">Básico</SelectItem>
                               <SelectItem value="pro">Pro</SelectItem>
+                              <SelectItem value="premium">Premium</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
