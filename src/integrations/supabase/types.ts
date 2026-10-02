@@ -1017,7 +1017,7 @@ export type Database = {
           created_at: string
           id: string
           model: string
-          plate: string
+          plate: string | null
           updated_at: string
           user_id: string
           year: number | null
@@ -1029,7 +1029,7 @@ export type Database = {
           created_at?: string
           id?: string
           model: string
-          plate: string
+          plate: string | null
           updated_at?: string
           user_id: string
           year?: number | null
@@ -1041,7 +1041,7 @@ export type Database = {
           created_at?: string
           id?: string
           model?: string
-          plate?: string
+          plate?: string | null
           updated_at?: string
           user_id?: string
           year?: number | null
