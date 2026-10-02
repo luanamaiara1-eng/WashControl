@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as evolution from "./evolution.js";
-import { findBusinessByInstance } from "./business.js";
+import { findBusinessByAuthorizedPhone } from "./business.js";
 import { fromRemoteJid } from "./phone.js";
 import {
   HELP_MESSAGE,
@@ -36,7 +36,12 @@ function extractText(data: any): string | null {
   );
 }
 
-async function resolveReply(userId: string, timezone: string | null, text: string): Promise<string | null> {
+async function resolveReply(
+  userId: string,
+  timezone: string | null,
+  senderPhone: string,
+  text: string,
+): Promise<string | null> {
   if (isHelpTrigger(text)) return HELP_MESSAGE;
 
   if (isRegisterClientTrigger(text)) {
@@ -50,7 +55,7 @@ async function resolveReply(userId: string, timezone: string | null, text: strin
     const cmd = parseRegisterServiceCommand(text);
     return cmd
       ? handleRegisterService(userId, cmd)
-      : "Não entendi 🤔. Pra cadastrar um serviço manda assim:\n\n*cadastrar serviço Nome, Preço, Duração em minutos (opcional)*\n\nEx: cadastrar serviço Lavagem Completa, 80, 60";
+      : "Não entendi 🤔. Pra cadastrar um serviço manda assim:\n\ncadastrar serviço Nome, Preço, Duração em minutos (opcional)";
   }
 
   if (isScheduleTrigger(text)) {
@@ -78,23 +83,35 @@ async function resolveReply(userId: string, timezone: string | null, text: strin
 }
 
 webhookRouter.post("/evolution/:instanceName", async (req, res) => {
-  // Always ack fast so the gateway doesn't retry; errors are logged, not surfaced.
   res.status(200).json({ ok: true });
 
   try {
     const { instanceName } = req.params;
     const data = req.body?.data ?? req.body;
-
     const fromMe: boolean = data?.key?.fromMe ?? false;
     const remoteJid: string | undefined = data?.key?.remoteJid;
     const text = extractText(data);
 
     if (fromMe || !remoteJid || !text) return;
 
-    const business = await findBusinessByInstance(instanceName);
-    if (!business || !business.whatsapp_auto_register_enabled) return;
-
     const senderPhone = fromRemoteJid(remoteJid);
+    const business = await findBusinessByAuthorizedPhone(senderPhone);
+
+    // The central number is a shared SaaS channel, so the sender's authorized
+    // phone is the tenant boundary. Never infer the company from message text.
+    if (!business) return;
+
+    if (!business.subscription_active) {
+      await evolution.sendText(
+        instanceName,
+        senderPhone,
+        "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.",
+      );
+      return;
+    }
+
+    if (!business.whatsapp_auto_register_enabled) return;
+
     const reply = await resolveReply(business.user_id, business.timezone, senderPhone, text);
     if (reply) await evolution.sendText(instanceName, senderPhone, reply);
   } catch (err) {
