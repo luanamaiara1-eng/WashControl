@@ -139,7 +139,16 @@ export const useUpdateUserSubscription = () => {
       status?: SubscriptionStatus;
     }) => {
       const updates: Record<string, unknown> = {};
-      if (plan) updates.plan = plan;
+      if (plan) {
+        updates.plan = plan;
+        const { data: saasPlan, error: planError } = await db
+          .from("saas_plans")
+          .select("id")
+          .eq("slug", plan)
+          .maybeSingle();
+        if (planError) throw planError;
+        updates.plan_id = saasPlan?.id ?? null;
+      }
       if (status) updates.status = status;
       const { error } = await supabase.from("subscriptions").update(updates).eq("user_id", userId);
       if (error) throw error;
