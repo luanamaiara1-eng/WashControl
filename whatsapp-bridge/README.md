@@ -1,14 +1,31 @@
 # WashControl WhatsApp Bridge
 
 Serviço pequeno (Node/Express) que roda na sua VPS e liga o WashControl (que
-continua no Supabase) à sua instância EvolutionGo/Evolution API. Faz duas coisas:
+continua no Supabase) à sua instância EvolutionGo/Evolution API.
 
-1. **Cadastro de cliente via WhatsApp** — recebe o webhook de mensagens da
-   EvolutionGo, reconhece o comando `cadastrar cliente Nome, Telefone, Carro`
-   e grava direto na tabela `clients` do Supabase.
-2. **Mensagem de retorno automática** — todo dia (cron configurável) verifica
-   quais clientes completaram a janela de dias configurada (`Configurações >
-   WhatsApp` no app) desde a última lavagem e manda a mensagem de reativação.
+Com ele ativado, manda uma mensagem pro próprio número do negócio e o
+sistema executa na hora:
+
+| Comando | Exemplo |
+|---|---|
+| Cadastrar cliente | `cadastrar cliente João Silva, 11999998888, Onix Prata` |
+| Cadastrar serviço | `cadastrar serviço Lavagem Completa, 80, 60` |
+| Agendar (fala natural) | `João agendou lavagem completa pro jetta às 8h valor 80,00` |
+| Agendar (formato fixo) | `agendar João, Lavagem Completa, Jetta, 08:00, 80` |
+| Vale (adiantamento) | `vale Carlos, 50` |
+| Pagamento de funcionário | `pagamento funcionário Carlos, 200` |
+| Ajuda | `ajuda` (lista os comandos a qualquer momento) |
+
+Além disso, todo dia (cron configurável) verifica quais clientes completaram
+a janela de dias configurada (`Configurações > WhatsApp` no app) desde a
+última lavagem e manda a mensagem de reativação automaticamente.
+
+**Sobre o agendamento criado via WhatsApp:** ele entra no sistema com status
+"agendado" — aparece na hora no painel/agenda (igual um agendamento feito
+pelo app), mas só entra no **Financeiro** quando o atendimento for marcado
+como concluído (check-out), exatamente como já funciona hoje pra qualquer
+agendamento manual. Isso é intencional: não se conta receita de um serviço
+que ainda não foi feito.
 
 Não guarda nenhuma senha de WhatsApp nem dado de cliente localmente — tudo
 fica no seu Supabase; a EvolutionGo é quem mantém a sessão do WhatsApp.
@@ -70,6 +87,14 @@ O cliente em `src/evolution.ts` usa as rotas no padrão Evolution API
 por ser um fork/reescrita compatível. Se a sua versão específica usar rotas
 diferentes, esse é o único arquivo que precisa de ajuste — confira o
 Swagger/`/docs` da sua instância.
+
+## Como o sistema reconhece cliente, serviço e funcionário
+
+Pra agendar, dar vale ou registrar pagamento, o bridge procura o nome
+informado entre os clientes/serviços/funcionários já cadastrados daquela
+empresa (sem diferenciar maiúsculas/acentos, e aceitando nome parcial). Se
+não encontrar (ou o serviço/funcionário ainda não existir), ele responde
+pedindo pra cadastrar primeiro, em vez de criar algo errado adivinhando.
 
 ## Sobre "carro" no cadastro via WhatsApp
 

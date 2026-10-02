@@ -1,12 +1,31 @@
 import { Router } from "express";
-import { supabaseAdmin } from "./supabaseAdmin.js";
 import * as evolution from "./evolution.js";
-import { parseRegisterClientCommand, isRegisterClientTrigger } from "./commands.js";
-import { fromRemoteJid, isValidBrazilianPhone, toLocalPhone } from "./phone.js";
+import { findBusinessByInstance } from "./business.js";
+import { fromRemoteJid } from "./phone.js";
+import {
+  HELP_MESSAGE,
+  isHelpTrigger,
+  isRegisterClientTrigger,
+  parseRegisterClientCommand,
+  isRegisterServiceTrigger,
+  parseRegisterServiceCommand,
+  isScheduleTrigger,
+  parseScheduleCommand,
+  isAdvanceTrigger,
+  parseAdvanceCommand,
+  isPaymentTrigger,
+  parsePaymentCommand,
+} from "./commands.js";
+import {
+  handleRegisterClient,
+  handleRegisterService,
+  handleSchedule,
+  handleAdvance,
+  handlePayment,
+} from "./handlers.js";
 
 export const webhookRouter = Router();
 
-// Extracts the plain text body across the message shapes EvolutionGo/Evolution API use.
 function extractText(data: any): string | null {
   const message = data?.message ?? {};
   return (
@@ -15,6 +34,47 @@ function extractText(data: any): string | null {
     message.ephemeralMessage?.message?.conversation ??
     null
   );
+}
+
+async function resolveReply(userId: string, timezone: string | null, text: string): Promise<string | null> {
+  if (isHelpTrigger(text)) return HELP_MESSAGE;
+
+  if (isRegisterClientTrigger(text)) {
+    const cmd = parseRegisterClientCommand(text);
+    return cmd
+      ? handleRegisterClient(userId, cmd)
+      : "Não entendi 🤔. Pra cadastrar um cliente manda assim:\n\n*cadastrar cliente Nome, Telefone, Carro (opcional)*\n\nEx: cadastrar cliente João Silva, 11999998888, Onix Prata";
+  }
+
+  if (isRegisterServiceTrigger(text)) {
+    const cmd = parseRegisterServiceCommand(text);
+    return cmd
+      ? handleRegisterService(userId, cmd)
+      : "Não entendi 🤔. Pra cadastrar um serviço manda assim:\n\n*cadastrar serviço Nome, Preço, Duração em minutos (opcional)*\n\nEx: cadastrar serviço Lavagem Completa, 80, 60";
+  }
+
+  if (isScheduleTrigger(text)) {
+    const cmd = parseScheduleCommand(text);
+    return cmd
+      ? handleSchedule(userId, timezone, cmd)
+      : "Não entendi o agendamento 🤔. Manda assim:\n\n*Nome agendou Serviço pro Carro às HH:MM valor Valor*\n\nEx: João agendou lavagem completa pro jetta às 8h valor 80,00";
+  }
+
+  if (isAdvanceTrigger(text)) {
+    const cmd = parseAdvanceCommand(text);
+    return cmd
+      ? handleAdvance(userId, timezone, cmd)
+      : "Não entendi o vale 🤔. Manda assim:\n\n*vale Nome do funcionário, Valor*\n\nEx: vale Carlos, 50";
+  }
+
+  if (isPaymentTrigger(text)) {
+    const cmd = parsePaymentCommand(text);
+    return cmd
+      ? handlePayment(userId, timezone, cmd)
+      : "Não entendi o pagamento 🤔. Manda assim:\n\n*pagamento funcionário Nome do funcionário, Valor*\n\nEx: pagamento funcionário Carlos, 200";
+  }
+
+  return null;
 }
 
 webhookRouter.post("/evolution/:instanceName", async (req, res) => {
@@ -29,54 +89,14 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     const remoteJid: string | undefined = data?.key?.remoteJid;
     const text = extractText(data);
 
-    if (fromMe || !remoteJid || !text || !isRegisterClientTrigger(text)) return;
+    if (fromMe || !remoteJid || !text) return;
 
-    const { data: business, error } = await supabaseAdmin
-      .from("business_settings")
-      .select("user_id, whatsapp_auto_register_enabled")
-      .eq("evolution_instance_name", instanceName)
-      .maybeSingle();
-
-    if (error || !business || !business.whatsapp_auto_register_enabled) return;
+    const business = await findBusinessByInstance(instanceName);
+    if (!business || !business.whatsapp_auto_register_enabled) return;
 
     const senderPhone = fromRemoteJid(remoteJid);
-    const command = parseRegisterClientCommand(text);
-
-    if (!command) {
-      await evolution.sendText(
-        instanceName,
-        senderPhone,
-        "Não entendi 🤔. Pra cadastrar um cliente manda assim:\n\n*cadastrar cliente Nome, Telefone, Carro (opcional)*\n\nEx: cadastrar cliente João Silva, 11999998888, Onix Prata"
-      );
-      return;
-    }
-
-    const clientPhone = toLocalPhone(command.phone);
-    if (!isValidBrazilianPhone(clientPhone)) {
-      await evolution.sendText(
-        instanceName,
-        senderPhone,
-        `O telefone "${command.phone}" não parece válido. Manda com DDD, só números (ex: 11999998888).`
-      );
-      return;
-    }
-
-    const { error: insertError } = await supabaseAdmin.from("clients").insert({
-      user_id: business.user_id,
-      name: command.name,
-      phone: clientPhone,
-      notes: command.car ? `Carro (cadastro via WhatsApp): ${command.car}` : null,
-    });
-
-    if (insertError) {
-      await evolution.sendText(instanceName, senderPhone, "Deu erro ao cadastrar o cliente. Tenta de novo em instantes.");
-      return;
-    }
-
-    const confirmation = command.car
-      ? `✅ Cliente cadastrado!\n👤 ${command.name}\n📞 ${clientPhone}\n🚗 ${command.car}`
-      : `✅ Cliente cadastrado!\n👤 ${command.name}\n📞 ${clientPhone}`;
-    await evolution.sendText(instanceName, senderPhone, confirmation);
+    const reply = await resolveReply(business.user_id, business.timezone, text);
+    if (reply) await evolution.sendText(instanceName, senderPhone, reply);
   } catch (err) {
     console.error("webhook error:", err);
   }

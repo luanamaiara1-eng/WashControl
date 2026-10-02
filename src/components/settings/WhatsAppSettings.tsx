@@ -193,14 +193,16 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>Cadastro de cliente via WhatsApp</CardTitle>
+          <CardTitle>Comandos pelo WhatsApp</CardTitle>
           <CardDescription>
-            Manda uma mensagem pro próprio número conectado e o cliente é cadastrado na hora.
+            Manda uma mensagem pro próprio número conectado e o sistema executa na hora: cadastra
+            cliente, cadastra serviço, agenda um atendimento, registra vale ou pagamento de
+            funcionário.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="whatsapp_auto_register_enabled">Ativar cadastro por mensagem</Label>
+            <Label htmlFor="whatsapp_auto_register_enabled">Ativar comandos por mensagem</Label>
             <Switch
               id="whatsapp_auto_register_enabled"
               checked={formData.whatsapp_auto_register_enabled}
@@ -208,11 +210,29 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
             />
           </div>
           {formData.whatsapp_auto_register_enabled && (
-            <p className="text-sm text-muted-foreground bg-muted rounded-md p-3">
-              Formato: <strong>cadastrar cliente Nome, Telefone, Carro (opcional)</strong>
-              <br />
-              Ex: <em>cadastrar cliente João Silva, 11999998888, Onix Prata</em>
-            </p>
+            <div className="text-sm text-muted-foreground bg-muted rounded-md p-3 space-y-2">
+              <p>
+                Manda <strong>ajuda</strong> pelo WhatsApp a qualquer momento pra ver a lista
+                completa de comandos. Alguns exemplos:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>
+                  <em>cadastrar cliente João Silva, 11999998888, Onix Prata</em>
+                </li>
+                <li>
+                  <em>cadastrar serviço Lavagem Completa, 80, 60</em>
+                </li>
+                <li>
+                  <em>João agendou lavagem completa pro jetta às 8h valor 80,00</em>
+                </li>
+                <li>
+                  <em>vale Carlos, 50</em>
+                </li>
+                <li>
+                  <em>pagamento funcionário Carlos, 200</em>
+                </li>
+              </ul>
+            </div>
           )}
         </CardContent>
       </Card>
