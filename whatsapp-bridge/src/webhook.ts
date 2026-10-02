@@ -42,7 +42,7 @@ async function resolveReply(userId: string, timezone: string | null, text: strin
   if (isRegisterClientTrigger(text)) {
     const cmd = parseRegisterClientCommand(text);
     return cmd
-      ? handleRegisterClient(userId, cmd)
+      ? handleRegisterClient(userId, cmd, senderPhone)
       : "Não entendi 🤔. Pra cadastrar um cliente manda assim:\n\n*cadastrar cliente Nome, Telefone, Carro (opcional)*\n\nEx: cadastrar cliente João Silva, 11999998888, Onix Prata";
   }
 
@@ -95,7 +95,7 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     if (!business || !business.whatsapp_auto_register_enabled) return;
 
     const senderPhone = fromRemoteJid(remoteJid);
-    const reply = await resolveReply(business.user_id, business.timezone, text);
+    const reply = await resolveReply(business.user_id, business.timezone, senderPhone, text);
     if (reply) await evolution.sendText(instanceName, senderPhone, reply);
   } catch (err) {
     console.error("webhook error:", err);
