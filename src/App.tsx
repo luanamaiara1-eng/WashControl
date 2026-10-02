@@ -15,6 +15,7 @@ import Registro from "./pages/Registro";
 import Dashboard from "./pages/Dashboard";
 import DashboardFuncionario from "./pages/DashboardFuncionario";
 import Admin from "./pages/Admin";
+import Planos from "./pages/Planos";
 import NotFound from "./pages/NotFound";
 import PublicBooking from "./pages/PublicBooking";
 import BookingConfirmation from "./pages/BookingConfirmation";
@@ -59,6 +60,11 @@ const App = () => (
               <Route path="/admin" element={
                 <AdminRoute>
                   <Admin />
+                </AdminRoute>
+              } />
+              <Route path="/admin/planos" element={
+                <AdminRoute>
+                  <Planos />
                 </AdminRoute>
               } />
               <Route path="/admin/*" element={
