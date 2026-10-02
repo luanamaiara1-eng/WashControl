@@ -1,9 +1,16 @@
 import { matchTime, parseBrazilianNumber, parseTime } from "./text.js";
+import { isValidBrazilianPhone, toLocalPhone } from "./phone.js";
 
 export const HELP_MESSAGE = `🤖 *Comandos disponíveis no WhatsApp*
 
 *Cadastrar cliente*
-cadastrar cliente Nome, Telefone, Carro (opcional)
+cadastrar cliente Nome, Telefone (opcional), Carro (opcional), Placa (opcional)
+Se o telefone não for informado, uso automaticamente o WhatsApp que enviou a mensagem.
+
+Exemplos:
+cadastrar cliente João, 11999998888, Jetta, ABC1D23
+cadastrar cliente João, Jetta
+cadastrar cliente João, ABC1D23
 
 *Cadastrar serviço*
 cadastrar serviço Nome, Preço, Duração em minutos (opcional)
@@ -30,20 +37,44 @@ const CLIENT_TRIGGER = /^\s*(cadastrar|novo)\s+client[ea]\s*[:\-]?\s*/i;
 
 export interface RegisterClientCommand {
   name: string;
-  phone: string;
-  car: string | null;
+  phone: string | null;
+  vehicleText: string | null;
+  plate: string | null;
 }
 
 export function isRegisterClientTrigger(text: string): boolean {
   return CLIENT_TRIGGER.test(text);
 }
 
+function looksLikePlate(value: string): boolean {
+  const compact = value.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return /^[A-Z]{3}\d{4}$/.test(compact) || /^[A-Z]{3}\d[A-Z]\d{2}$/.test(compact);
+}
+
 export function parseRegisterClientCommand(text: string): RegisterClientCommand | null {
   if (!CLIENT_TRIGGER.test(text)) return null;
+
   const parts = text.replace(CLIENT_TRIGGER, "").trim().split(",").map((p) => p.trim()).filter(Boolean);
-  const [name, phone, car] = parts;
-  if (!name || !phone) return null;
-  return { name, phone, car: car || null };
+  const [name, second, third, fourth] = parts;
+  if (!name) return null;
+
+  let phone: string | null = null;
+  let vehicleText: string | null = null;
+  let plate: string | null = null;
+
+  if (second && isValidBrazilianPhone(toLocalPhone(second))) {
+    phone = toLocalPhone(second);
+    vehicleText = third || null;
+    plate = fourth || null;
+  } else if (second && looksLikePlate(second)) {
+    plate = second.toUpperCase();
+    vehicleText = third || null;
+  } else {
+    vehicleText = second || null;
+    plate = third || null;
+  }
+
+  return { name, phone, vehicleText, plate };
 }
 
 // ---- cadastrar serviço ----
