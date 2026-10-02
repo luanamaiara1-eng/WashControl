@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabaseAdmin.js";
-import { getActiveEmployees, getActiveServices, getClients, getClientVehicles } from "./business.js";
+import { getActiveEmployees, getActiveServices, getClientByPhone, getClients, getClientVehicles } from "./business.js";
 import { findBestMatch, resolveDate } from "./text.js";
 import type {
   MoneyCommand,
@@ -9,26 +9,67 @@ import type {
 } from "./commands.js";
 import { isValidBrazilianPhone, toLocalPhone } from "./phone.js";
 
-export async function handleRegisterClient(userId: string, cmd: RegisterClientCommand): Promise<string> {
-  const phone = toLocalPhone(cmd.phone);
+export async function handleRegisterClient(
+  userId: string,
+  cmd: RegisterClientCommand,
+  senderPhone: string | null
+): Promise<string> {
+  const phone = toLocalPhone(cmd.phone || senderPhone || "");
+
   if (!isValidBrazilianPhone(phone)) {
-    return `O telefone "${cmd.phone}" não parece válido. Manda com DDD, só números (ex: 11999998888).`;
+    return "Não consegui identificar um WhatsApp válido para esse cliente. Informe o telefone com DDD ou envie a mensagem pelo WhatsApp do cliente.";
   }
 
-  const { error } = await supabaseAdmin.from("clients").insert({
-    user_id: userId,
-    name: cmd.name,
-    phone,
-    notes: cmd.car ? `Carro (cadastro via WhatsApp): ${cmd.car}` : null,
-  });
+  let client = await getClientByPhone(userId, phone);
 
-  if (error) return "Deu erro ao cadastrar o cliente. Tenta de novo em instantes.";
+  if (client) {
+    if (client.name !== cmd.name) {
+      await supabaseAdmin.from("clients").update({ name: cmd.name }).eq("id", client.id).eq("user_id", userId);
+    }
+  } else {
+    const { data, error } = await supabaseAdmin
+      .from("clients")
+      .insert({ user_id: userId, name: cmd.name, phone })
+      .select("id, name, phone")
+      .single();
 
-  return cmd.car
-    ? `✅ Cliente cadastrado!\n👤 ${cmd.name}\n📞 ${phone}\n🚗 ${cmd.car}`
-    : `✅ Cliente cadastrado!\n👤 ${cmd.name}\n📞 ${phone}`;
+    if (error || !data) return "Deu erro ao cadastrar o cliente. Tenta de novo em instantes.";
+    client = data;
+  }
+
+  if (cmd.vehicleText || cmd.plate) {
+    const vehicles = await getClientVehicles(userId, client.id);
+    let vehicle = cmd.plate
+      ? vehicles.find((v) => v.plate && v.plate.toLowerCase() === cmd.plate!.toLowerCase()) ?? null
+      : null;
+
+    if (!vehicle && cmd.vehicleText) {
+      vehicle = findBestMatch(cmd.vehicleText, vehicles, (v) => `${v.brand} ${v.model} ${v.plate || ""}`);
+    }
+
+    if (vehicle) {
+      const updates: Record<string, string | null> = {};
+      if (cmd.plate && !vehicle.plate) updates.plate = cmd.plate.toUpperCase();
+      if (cmd.vehicleText && vehicle.model === "Veículo não informado") updates.model = cmd.vehicleText;
+      if (Object.keys(updates).length) {
+        await supabaseAdmin.from("vehicles").update(updates).eq("id", vehicle.id).eq("user_id", userId);
+      }
+    } else {
+      const { error } = await supabaseAdmin.from("vehicles").insert({
+        user_id: userId,
+        client_id: client.id,
+        brand: "Não informado",
+        model: cmd.vehicleText || "Veículo não informado",
+        plate: cmd.plate ? cmd.plate.toUpperCase() : null,
+      });
+      if (error) return "Cliente cadastrado, mas não consegui salvar o veículo. A placa precisa estar como opcional no banco.";
+    }
+  }
+
+  return `✅ Cliente cadastrado/atualizado!
+👤 ${cmd.name}
+📱 WhatsApp: ${phone}${cmd.vehicleText || cmd.plate ? `\n🚗 ${cmd.vehicleText || "Veículo não informado"}${cmd.plate ? `\n🔖 Placa: ${cmd.plate.toUpperCase()}` : "\n🔖 Placa: não informada"}` : ""}`;
 }
-
 export async function handleRegisterService(userId: string, cmd: RegisterServiceCommand): Promise<string> {
   const { error } = await supabaseAdmin.from("services").insert({
     user_id: userId,
