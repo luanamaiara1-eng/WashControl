@@ -20,6 +20,16 @@ export async function getClients(userId: string) {
   return data ?? [];
 }
 
+export async function getClientByPhone(userId: string, phone: string) {
+  const { data } = await supabaseAdmin
+    .from("clients")
+    .select("id, name, phone")
+    .eq("user_id", userId)
+    .eq("phone", phone)
+    .maybeSingle();
+  return data ?? null;
+}
+
 export async function getActiveServices(userId: string) {
   const { data } = await supabaseAdmin
     .from("services")
