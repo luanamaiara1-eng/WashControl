@@ -109,6 +109,7 @@ const Admin = () => {
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard Admin", href: "/admin" },
+    { icon: Crown, label: "Planos", href: "/admin/planos" },
   ];
 
   return (
