@@ -103,7 +103,7 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
 
     if (!business.subscription_active) {
       await evolution.sendText(
-        instanceName,
+        business.evolution_instance_token!,
         senderPhone,
         "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.",
       );
