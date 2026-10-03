@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import logoImage from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -7,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp } from "lucide-react";
+import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
 import { format, addDays, isBefore } from "date-fns";
@@ -23,8 +25,37 @@ const Admin = () => {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useAdminStats();
   const updateSubscription = useUpdateUserSubscription();
   const updateStatus = useUpdateUserStatus();
+  const [videos, setVideos] = useState<any[]>([]);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoForm, setVideoForm] = useState({ id: "", title: "", description: "", category: "Começando", video_url: "", thumbnail_url: "", sort_order: 0, is_active: true });
+  const [videoFile, setVideoFile] = useState<File | null>(null);
 
-  const refresh = () => { refetchUsers(); refetchStats(); };
+  const loadVideos = async () => {
+    setVideoLoading(true);
+    const { data, error } = await supabase.from("help_videos").select("*").order("sort_order").order("created_at");
+    if (error) toast.error("Erro ao carregar tutoriais: " + error.message);
+    else setVideos(data || []);
+    setVideoLoading(false);
+  };
+  const resetVideo = () => { setVideoForm({ id: "", title: "", description: "", category: "Começando", video_url: "", thumbnail_url: "", sort_order: 0, is_active: true }); setVideoFile(null); };
+  const saveVideo = async () => {
+    if (!videoForm.title.trim()) return toast.error("Informe o título do tutorial.");
+    let videoUrl = videoForm.video_url.trim();
+    if (videoFile) {
+      const ext = videoFile.name.split(".").pop() || "mp4";
+      const path = `tutorials/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("help-videos").upload(path, videoFile, { upsert: false });
+      if (uploadError) return toast.error("Erro no upload: " + uploadError.message);
+      videoUrl = supabase.storage.from("help-videos").getPublicUrl(path).data.publicUrl;
+    }
+    const payload = { title: videoForm.title.trim(), description: videoForm.description.trim() || null, category: videoForm.category, video_url: videoUrl || null, thumbnail_url: videoForm.thumbnail_url.trim() || null, sort_order: Number(videoForm.sort_order) || 0, is_active: videoForm.is_active };
+    const result = videoForm.id ? await supabase.from("help_videos").update(payload).eq("id", videoForm.id) : await supabase.from("help_videos").insert(payload);
+    if (result.error) return toast.error("Erro ao salvar tutorial: " + result.error.message);
+    toast.success(videoForm.id ? "Tutorial atualizado!" : "Tutorial publicado!"); resetVideo(); loadVideos();
+  };
+  const deleteVideo = async (id: string) => { if (!confirm("Excluir este tutorial?")) return; const { error } = await supabase.from("help_videos").delete().eq("id", id); if (error) toast.error(error.message); else { toast.success("Tutorial excluído."); loadVideos(); } };
+
+  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); };
   const handleLogout = async () => { await signOut(); navigate("/"); };
 
   const planLabel: Record<string,string> = { free:"Gratuito", basic:"Básico", pro:"Pro", premium:"Premium" };
@@ -38,10 +69,13 @@ const Admin = () => {
     updateSubscription.mutate({ userId, expiresAt: addDays(base, days).toISOString(), status:"active" });
   };
 
+  loadVideos();
+
   const navItems = [
     { icon: LayoutDashboard, label:"Visão geral", href:"/admin" },
     { icon: Users, label:"Usuários", href:"/admin#usuarios" },
     { icon: Crown, label:"Planos", href:"/admin/planos" },
+    { icon: PlayCircle, label:"Tutoriais", href:"/admin#tutoriais" },
   ];
 
   return <div className="min-h-screen bg-background flex">
@@ -92,6 +126,28 @@ const Admin = () => {
           <Card className="rounded-2xl"><CardContent className="p-5"><p className="text-sm text-muted-foreground">Inativos</p><p className="text-xl font-bold mt-1">{stats?.inactiveUsers||0}</p></CardContent></Card>
         </section>
 
+
+        <section id="tutoriais">
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><PlayCircle className="w-4 h-4"/>Central de Tutoriais</CardTitle><p className="text-sm text-muted-foreground">Cadastre, envie, edite, organize e publique os vídeos que aparecem na Central de Ajuda dos clientes.</p></CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid lg:grid-cols-2 gap-4">
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div className="flex items-center justify-between"><h3 className="font-semibold">{videoForm.id ? "Editar tutorial" : "Novo tutorial"}</h3>{videoForm.id && <Button size="sm" variant="ghost" onClick={resetVideo}>Cancelar</Button>}</div>
+                  <input className="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="Título" value={videoForm.title} onChange={e=>setVideoForm({...videoForm,title:e.target.value})}/>
+                  <textarea className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-20" placeholder="Descrição" value={videoForm.description} onChange={e=>setVideoForm({...videoForm,description:e.target.value})}/>
+                  <div className="grid grid-cols-2 gap-3"><input className="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Categoria" value={videoForm.category} onChange={e=>setVideoForm({...videoForm,category:e.target.value})}/><input type="number" className="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Ordem" value={videoForm.sort_order} onChange={e=>setVideoForm({...videoForm,sort_order:Number(e.target.value)})}/></div>
+                  <input className="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="URL do YouTube ou vídeo externo (opcional)" value={videoForm.video_url} onChange={e=>setVideoForm({...videoForm,video_url:e.target.value})}/>
+                  <input className="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="URL da thumbnail (opcional)" value={videoForm.thumbnail_url} onChange={e=>setVideoForm({...videoForm,thumbnail_url:e.target.value})}/>
+                  <label className="flex items-center gap-2 rounded-md border p-3 text-sm cursor-pointer"><Upload className="w-4 h-4"/><span>Ou enviar arquivo de vídeo</span><input type="file" accept="video/*" className="hidden" onChange={e=>setVideoFile(e.target.files?.[0]||null)}/>{videoFile&&<span className="text-xs text-muted-foreground truncate">{videoFile.name}</span>}</label>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={videoForm.is_active} onChange={e=>setVideoForm({...videoForm,is_active:e.target.checked})}/> Publicar na Central de Ajuda</label>
+                  <Button onClick={saveVideo} className="w-full gap-2"><Plus className="w-4 h-4"/>{videoForm.id ? "Salvar alterações" : "Adicionar tutorial"}</Button>
+                </div>
+                <div className="space-y-3"><h3 className="font-semibold">Tutoriais publicados</h3>{videoLoading?<p className="text-sm text-muted-foreground">Carregando...</p>:videos.length===0?<div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Nenhum tutorial cadastrado.</div>:videos.map(v=><div key={v.id} className="flex items-center gap-3 rounded-xl border p-3"><div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0"><PlayCircle className="w-5 h-5 text-primary"/></div><div className="min-w-0 flex-1"><p className="font-medium truncate">{v.title}</p><p className="text-xs text-muted-foreground">{v.category} · ordem {v.sort_order}</p></div><Button variant="ghost" size="icon" onClick={()=>setVideoForm(v)}>{v.is_active?<Eye className="w-4 h-4"/>:<EyeOff className="w-4 h-4"/>}</Button><Button variant="ghost" size="icon" onClick={()=>setVideoForm(v)}><Pencil className="w-4 h-4"/></Button><Button variant="ghost" size="icon" onClick={()=>deleteVideo(v.id)}><Trash2 className="w-4 h-4 text-destructive"/></Button></div>)}</div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
         <Card id="usuarios" className="rounded-2xl overflow-hidden">
           <CardHeader><CardTitle className="text-base">Gestão de usuários</CardTitle><p className="text-sm text-muted-foreground">Ative, desative, altere plano e estenda a assinatura sem precisar editar banco.</p></CardHeader>
           {usersLoading ? <div className="p-10 text-center">Carregando...</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Empresa</TableHead><TableHead>Status</TableHead><TableHead>Plano</TableHead><TableHead>Assinatura</TableHead><TableHead>Vencimento</TableHead><TableHead>Cadastro</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
