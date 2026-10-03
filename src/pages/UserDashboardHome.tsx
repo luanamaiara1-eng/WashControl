@@ -36,7 +36,7 @@ const UserDashboardHome = () => {
       <div className="flex gap-2"><Button variant="outline" size="sm" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4"/>Atualizar</Button><Link to="/dashboard/agendamentos"><Button size="sm">Novo agendamento</Button></Link></div>
     </div>
 
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {[
         ["Faturamento", money(financial?.totalIncome||0), DollarSign, "bg-primary/10 text-primary"],
         ["Despesas", money(financial?.totalExpense||0), TrendingDown, "bg-destructive/10 text-destructive"],
@@ -45,8 +45,8 @@ const UserDashboardHome = () => {
       ].map(([label,value,Icon,style]:any)=><Card key={label} className="rounded-2xl"><CardContent className="p-5"><div className="flex justify-between items-start"><div><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold mt-1">{financialLoading?"...":value}</p></div><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${style}`}><Icon className="w-5 h-5"/></div></div></CardContent></Card>)}
     </div>
 
-    <div className="grid lg:grid-cols-3 gap-6">
-      <Card className="lg:col-span-2 rounded-2xl"><CardHeader><CardTitle className="text-base">Evolução do faturamento</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={280}><AreaChart data={revenue}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis dataKey="label" fontSize={11}/><YAxis fontSize={11}/><Tooltip formatter={(v:number)=>money(v)}/><Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.14} strokeWidth={2}/></AreaChart></ResponsiveContainer></CardContent></Card>
+    <div className="grid lg:grid-cols-3 gap-6 min-w-0">
+      <Card className="lg:col-span-2 rounded-2xl min-w-0"><CardHeader><CardTitle className="text-base">Evolução do faturamento</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={240}><AreaChart data={revenue}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis dataKey="label" fontSize={11}/><YAxis fontSize={11}/><Tooltip formatter={(v:number)=>money(v)}/><Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.14} strokeWidth={2}/></AreaChart></ResponsiveContainer></CardContent></Card>
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Operação</CardTitle></CardHeader><CardContent className="space-y-4">
         <div className="flex items-center justify-between"><span className="flex gap-2 items-center text-sm"><Wrench className="w-4 h-4 text-primary"/>Serviços concluídos</span><b>{completed}</b></div>
         <div className="flex items-center justify-between"><span className="flex gap-2 items-center text-sm"><UserPlus className="w-4 h-4 text-success"/>Novos clientes</span><b>{clients?.newClients||0}</b></div>
@@ -57,7 +57,7 @@ const UserDashboardHome = () => {
     </div>
 
     <div className="grid lg:grid-cols-2 gap-6">
-      <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Serviços mais realizados</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={260}><BarChart data={topServices} layout="vertical" margin={{left:10,right:10}}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={110} fontSize={11}/><Tooltip/><Bar dataKey="count" name="Serviços" fill="hsl(var(--primary))" radius={[0,4,4,0]}/></BarChart></ResponsiveContainer></CardContent></Card>
+      <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Serviços mais realizados</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={240}><BarChart data={topServices} layout="vertical" margin={{left:10,right:10}}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={90} fontSize={10}/><Tooltip/><Bar dataKey="count" name="Serviços" fill="hsl(var(--primary))" radius={[0,4,4,0]}/></BarChart></ResponsiveContainer></CardContent></Card>
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Faturamento por funcionário</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={260}><BarChart data={topEmployees} layout="vertical" margin={{left:10,right:10}}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis type="number"/><YAxis type="category" dataKey="name" width={110} fontSize={11}/><Tooltip formatter={(v:number)=>money(v)}/><Bar dataKey="revenue" name="Faturamento" fill="hsl(var(--chart-2))" radius={[0,4,4,0]}/></BarChart></ResponsiveContainer></CardContent></Card>
     </div>
 
