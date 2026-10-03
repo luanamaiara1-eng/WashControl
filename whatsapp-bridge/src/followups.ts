@@ -47,14 +47,19 @@ export async function sendDueFollowups(): Promise<{ sent: number; skipped: numbe
   const userIds = [...new Set(dueFollowups.map((f) => f.user_id))];
   const { data: businesses } = await supabaseAdmin
     .from("business_settings")
-    .select("user_id, evolution_instance_name, evolution_instance_token, whatsapp_followup_enabled, whatsapp_followup_days, whatsapp_followup_message")
+    .select("user_id, whatsapp_followup_enabled, whatsapp_followup_days, whatsapp_followup_message")
     .in("user_id", userIds);
+  const { data: credentials } = await supabaseAdmin
+    .from("whatsapp_instance_credentials")
+    .select("user_id, instance_token")
+    .in("user_id", userIds);
+  const tokenByUserId = new Map((credentials ?? []).map((c) => [c.user_id, c.instance_token]));
   const businessByUserId = new Map((businesses ?? []).map((b) => [b.user_id, b]));
 
   for (const followup of dueFollowups) {
     const business = businessByUserId.get(followup.user_id);
     const client = followup.clients as unknown as { name: string; phone: string | null } | null;
-    if (!business?.whatsapp_followup_enabled || !business.evolution_instance_name || !business.evolution_instance_token) { result.skipped++; continue; }
+    if (!business?.whatsapp_followup_enabled || !tokenByUserId.get(followup.user_id)) { result.skipped++; continue; }
 
     if (!client?.phone || !isValidBrazilianPhone(client.phone)) {
       await supabaseAdmin.from("client_followups").update({ status: "failed" }).eq("id", followup.id);
@@ -63,7 +68,7 @@ export async function sendDueFollowups(): Promise<{ sent: number; skipped: numbe
 
     const message = renderTemplate(business.whatsapp_followup_message, { nome: client.name, dias: String(business.whatsapp_followup_days) });
     try {
-      await evolution.sendText(business.evolution_instance_token, client.phone, message);
+      await evolution.sendText(tokenByUserId.get(followup.user_id)!, client.phone, message);
       await supabaseAdmin.from("client_followups").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", followup.id);
       result.sent++;
     } catch (err) { console.error(`Failed to send followup ${followup.id}:`, err); result.failed++; }
@@ -75,14 +80,21 @@ export async function sendDueAppointmentReminders(): Promise<{ sent: number; ski
   const result = { sent: 0, skipped: 0, failed: 0 };
   const { data: businesses, error: businessError } = await supabaseAdmin
     .from("business_settings")
-    .select("user_id,evolution_instance_name,evolution_instance_token,send_reminders,reminder_hours_before,whatsapp_reminder_message,timezone")
+    .select("user_id,send_reminders,reminder_hours_before,whatsapp_reminder_message,timezone")
     .eq("send_reminders", true);
 
   if (businessError) { console.error("Failed to load reminder settings:", businessError); return result; }
   if (!businesses?.length) return result;
 
+  const reminderUserIds = businesses.map((business) => business.user_id);
+  const { data: reminderCredentials } = await supabaseAdmin
+    .from("whatsapp_instance_credentials")
+    .select("user_id, instance_token")
+    .in("user_id", reminderUserIds);
+  const reminderTokenByUserId = new Map((reminderCredentials ?? []).map((c) => [c.user_id, c.instance_token]));
+
   for (const business of businesses) {
-    if (!business.evolution_instance_name || !business.evolution_instance_token) { result.skipped++; continue; }
+    if (!reminderTokenByUserId.get(business.user_id)) { result.skipped++; continue; }
     const timezone = business.timezone || "America/Sao_Paulo";
     const now = new Date();
     const nowLocal = zonedParts(now, timezone);
@@ -132,7 +144,7 @@ export async function sendDueAppointmentReminders(): Promise<{ sent: number; ski
       if (existing) { result.skipped++; continue; }
 
       try {
-        await evolution.sendText(business.evolution_instance_token, client.phone, message);
+        await evolution.sendText(reminderTokenByUserId.get(business.user_id)!, client.phone, message);
         await supabaseAdmin.from("whatsapp_message_logs").insert({
           user_id: business.user_id, appointment_id: appointment.id, client_id: appointment.client_id,
           message_type: "appointment_reminder", recipient_phone: client.phone, message, status: "sent",
