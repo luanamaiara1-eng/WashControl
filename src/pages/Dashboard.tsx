@@ -24,7 +24,8 @@ import {
   Wallet,
   Bell,
   RefreshCw,
-  Shield
+  Shield,
+  HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useAdmin";
@@ -41,6 +42,8 @@ import PagamentosFuncionariosPage from "./PagamentosFuncionarios";
 import { useAppointments, useAppointmentsRealtime } from "@/hooks/useAppointments";
 import { useUpcomingExpenses } from "@/hooks/useFixedExpenses";
 import UserDashboardHome from "./UserDashboardHome";
+import AjudaPage from "./Ajuda";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -48,8 +51,15 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { data: isAdmin } = useIsAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 1024);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   const currentPath = location.pathname;
+
+  useEffect(() => {
+    const openOnboarding = () => setOnboardingOpen(true);
+    window.addEventListener("washcontrol:open-onboarding", openOnboarding);
+    return () => window.removeEventListener("washcontrol:open-onboarding", openOnboarding);
+  }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -63,6 +73,7 @@ const Dashboard = () => {
     { icon: DollarSign, label: "Financeiro", href: "/dashboard/financeiro" },
     { icon: BarChart3, label: "Relatórios", href: "/dashboard/relatorios" },
     { icon: Settings, label: "Configurações", href: "/dashboard/configuracoes" },
+    { icon: HelpCircle, label: "Ajuda", href: "/dashboard/ajuda" },
   ];
 
   const handleLogout = async () => {
@@ -101,6 +112,9 @@ const Dashboard = () => {
     if (currentPath === "/dashboard/configuracoes") {
       return <ConfiguracoesPage />;
     }
+    if (currentPath === "/dashboard/ajuda") {
+      return <AjudaPage />;
+    }
     
     // Default dashboard content
     return <UserDashboardHome />;
@@ -117,6 +131,7 @@ const Dashboard = () => {
     if (currentPath === "/dashboard/pagamentos-funcionarios") return "Pagamentos de Funcionários";
     if (currentPath === "/dashboard/relatorios") return "Relatórios";
     if (currentPath === "/dashboard/configuracoes") return "Configurações";
+    if (currentPath === "/dashboard/ajuda") return "Central de Ajuda";
     return "Dashboard";
   };
 
@@ -274,7 +289,9 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Mobile Sidebar Overlay */}
+      <OnboardingWizard forceOpen={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
+
+      {/* Mobile Sidebar Overlay */
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
