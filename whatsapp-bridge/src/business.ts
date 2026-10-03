@@ -6,6 +6,7 @@ export interface Business {
   timezone: string | null;
   plan_slug: string | null;
   subscription_active: boolean;
+  evolution_instance_token: string | null;
 }
 
 export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
@@ -23,7 +24,7 @@ export async function findBusinessByAuthorizedPhone(phone: string): Promise<Busi
   const [{ data: profile }, { data: subscription }, { data: settings }] = await Promise.all([
     supabaseAdmin.from("profiles").select("is_active").eq("id", userId).maybeSingle(),
     supabaseAdmin.from("subscriptions").select("status, expires_at, plan_id").eq("user_id", userId).maybeSingle(),
-    supabaseAdmin.from("business_settings").select("user_id, whatsapp_auto_register_enabled, timezone").eq("user_id", userId).maybeSingle(),
+    supabaseAdmin.from("business_settings").select("user_id, whatsapp_auto_register_enabled, timezone, evolution_instance_token").eq("user_id", userId).maybeSingle(),
   ]);
 
   if (!profile || !settings) return null;
