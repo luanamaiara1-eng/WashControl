@@ -1,26 +1,45 @@
-import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import type { NextFunction, Response } from "express";
+import type { AuthedRequest } from "./types.js";
 import { config } from "./config.js";
 
-export interface AuthedRequest extends Request {
+export interface AuthedRequest extends import("express").Request {
   userId?: string;
 }
 
-/** Verifies the Supabase access token the frontend sends and attaches the business's user_id. */
-export function requireSupabaseAuth(req: AuthedRequest, res: Response, next: NextFunction) {
+/**
+ * Validates the Supabase access token against Supabase Auth.
+ * This avoids relying on the project's legacy JWT secret, which can differ
+ * from the current signing configuration.
+ */
+export async function requireSupabaseAuth(req: AuthedRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 
   if (!token) {
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
   try {
-    const payload = jwt.verify(token, config.supabaseJwtSecret) as jwt.JwtPayload;
-    if (!payload.sub) throw new Error("Token has no subject");
-    req.userId = payload.sub;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
+    const response = await fetch(`${config.supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const user = (await response.json()) as { id?: string };
+    if (!user.id) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    req.userId = user.id;
+    return next();
+  } catch (error) {
+    console.error("Supabase token validation failed:", error);
+    return res.status(502).json({ error: "Não foi possível validar a sessão no Supabase." });
   }
 }
