@@ -1,74 +1,84 @@
 import { config } from "./config.js";
 import { toWhatsAppNumber } from "./phone.js";
 
-/**
- * Thin REST client for EvolutionGo (and Evolution API, which it mirrors).
- * These paths follow the standard Evolution API convention. If your
- * EvolutionGo build exposes different routes, check its /docs (Swagger)
- * and adjust the paths below — everything else in the bridge is agnostic
- * to this detail.
- */
-
-async function evolutionFetch(path: string, init: RequestInit = {}): Promise<any> {
+async function evolutionFetch(path: string, apiKey: string, init: RequestInit = {}): Promise<any> {
   const res = await fetch(`${config.evolutionBaseUrl}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: config.evolutionApiKey,
-      ...init.headers,
-    },
+    headers: { "Content-Type": "application/json", apikey: apiKey, ...init.headers },
   });
-
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Evolution API ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`);
+    throw new Error(`Evolution Go ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`);
   }
-
   return res.status === 204 ? null : res.json();
 }
 
-export async function createInstance(instanceName: string) {
-  return evolutionFetch("/instance/create", {
+async function evolutionAdminFetch(path: string, init: RequestInit = {}) {
+  return evolutionFetch(path, config.evolutionApiKey, init);
+}
+
+async function evolutionInstanceFetch(instanceToken: string, path: string, init: RequestInit = {}) {
+  return evolutionFetch(path, instanceToken, init);
+}
+
+export interface EvolutionInstanceInfo {
+  id?: string;
+  name?: string;
+  token?: string;
+  connected?: boolean;
+  jid?: string | null;
+}
+
+export async function createInstance(instanceName: string, instanceToken: string) {
+  return evolutionAdminFetch("/instance/create", {
+    method: "POST",
+    body: JSON.stringify({ name: instanceName, token: instanceToken }),
+  });
+}
+
+export async function listInstances(): Promise<{ data?: EvolutionInstanceInfo[] }> {
+  return evolutionAdminFetch("/instance/all");
+}
+
+export async function getInstanceInfo(instanceId: string): Promise<{ data?: EvolutionInstanceInfo }> {
+  return evolutionAdminFetch(`/instance/info/${encodeURIComponent(instanceId)}`);
+}
+
+export async function connectInstance(instanceName: string, instanceToken: string) {
+  return evolutionInstanceFetch(instanceToken, "/instance/connect", {
     method: "POST",
     body: JSON.stringify({
-      instanceName,
-      qrcode: true,
-      integration: "WHATSAPP-BAILEYS",
+      webhookUrl: `${config.bridgePublicUrl}/webhook/evolution/${instanceName}`,
+      subscribe: ["MESSAGE", "CONNECTION", "QRCODE"],
     }),
   });
 }
 
-export async function setInstanceWebhook(instanceName: string) {
-  return evolutionFetch(`/webhook/set/${instanceName}`, {
+export async function getConnectQrCode(instanceToken: string): Promise<{ base64?: string; pairingCode?: string }> {
+  const response = await evolutionInstanceFetch(instanceToken, "/instance/qr");
+  const data = response?.data ?? response ?? {};
+  return {
+    base64: data.qrcode
+      ? String(data.qrcode).startsWith("data:") ? data.qrcode : `data:image/png;base64,${data.qrcode}`
+      : undefined,
+    pairingCode: data.code,
+  };
+}
+
+export async function getConnectionState(instanceToken: string): Promise<{ state?: string; instance?: { state?: string } }> {
+  const response = await evolutionInstanceFetch(instanceToken, "/instance/status");
+  const data = response?.data ?? response ?? {};
+  const state = data.loggedIn ? "open" : data.connected ? "connecting" : "close";
+  return { state, instance: { state } };
+}
+
+export async function logoutInstance(instanceToken: string) {
+  return evolutionInstanceFetch(instanceToken, "/instance/logout", { method: "DELETE", body: JSON.stringify({}) });
+}
+
+export async function sendText(instanceToken: string, localPhone: string, text: string) {
+  return evolutionInstanceFetch(instanceToken, "/send/text", {
     method: "POST",
-    body: JSON.stringify({
-      webhook: {
-        url: `${config.bridgePublicUrl}/webhook/evolution/${instanceName}`,
-        enabled: true,
-        events: ["MESSAGES_UPSERT"],
-      },
-    }),
-  });
-}
-
-export async function getConnectQrCode(instanceName: string): Promise<{ base64?: string; pairingCode?: string }> {
-  return evolutionFetch(`/instance/connect/${instanceName}`);
-}
-
-export async function getConnectionState(instanceName: string): Promise<{ state?: string; instance?: { state?: string } }> {
-  return evolutionFetch(`/instance/connectionState/${instanceName}`);
-}
-
-export async function logoutInstance(instanceName: string) {
-  return evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
-}
-
-export async function sendText(instanceName: string, localPhone: string, text: string) {
-  return evolutionFetch(`/message/sendText/${instanceName}`, {
-    method: "POST",
-    body: JSON.stringify({
-      number: toWhatsAppNumber(localPhone),
-      text,
-    }),
+    body: JSON.stringify({ number: toWhatsAppNumber(localPhone), text }),
   });
 }
