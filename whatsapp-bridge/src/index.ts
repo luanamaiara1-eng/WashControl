@@ -4,7 +4,7 @@ import cron from "node-cron";
 import { config } from "./config.js";
 import { webhookRouter } from "./webhook.js";
 import { instancesRouter } from "./instances.js";
-import { sendDueFollowups } from "./followups.js";
+import { sendDueFollowups, sendDueAppointmentReminders } from "./followups.js";
 
 const app = express();
 app.use(cors());
@@ -21,5 +21,6 @@ app.listen(config.port, () => {
 cron.schedule(config.followupCronSchedule, async () => {
   console.log("Running due follow-up messages job...");
   const result = await sendDueFollowups();
-  console.log("Follow-up job finished:", result);
+  const reminders = await sendDueAppointmentReminders();
+  console.log("WhatsApp automation finished:", { followups: result, reminders });
 });
