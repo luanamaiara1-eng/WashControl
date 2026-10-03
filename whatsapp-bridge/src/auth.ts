@@ -1,8 +1,7 @@
-import type { NextFunction, Response } from "express";
-import type { AuthedRequest } from "./types.js";
+import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.js";
 
-export interface AuthedRequest extends import("express").Request {
+export interface AuthedRequest extends Request {
   userId?: string;
 }
 
