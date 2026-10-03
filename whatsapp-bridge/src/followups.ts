@@ -75,7 +75,7 @@ export async function sendDueAppointmentReminders(): Promise<{ sent: number; ski
   const result = { sent: 0, skipped: 0, failed: 0 };
   const { data: businesses, error: businessError } = await supabaseAdmin
     .from("business_settings")
-    .select("user_id,evolution_instance_name,send_reminders,reminder_hours_before,reminder_message,whatsapp_reminder_message,timezone")
+    .select("user_id,evolution_instance_name,send_reminders,reminder_hours_before,whatsapp_reminder_message,timezone")
     .eq("send_reminders", true);
 
   if (businessError) { console.error("Failed to load reminder settings:", businessError); return result; }
@@ -114,7 +114,7 @@ export async function sendDueAppointmentReminders(): Promise<{ sent: number; ski
       const client = appointment.clients as unknown as { name: string; phone: string | null } | null;
       if (!client?.phone || !isValidBrazilianPhone(client.phone)) { result.skipped++; continue; }
 
-      const template = business.whatsapp_reminder_message || business.reminder_message ||
+      const template = business.whatsapp_reminder_message ||
         "Olá {{nome}}! 🚗 Seu atendimento está agendado para {{data}} às {{hora}}.\n\nServiço: {{servico}}\n\nSe precisar remarcar, fale conosco.";
       const message = renderTemplate(template, {
         nome: client.name,
