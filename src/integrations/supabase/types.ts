@@ -224,6 +224,7 @@ export type Database = {
           public_booking_enabled: boolean | null
           public_booking_slug: string | null
           reminder_hours_before: number | null
+          reminder_message: string
           send_reminders: boolean | null
           service_interval_minutes: number | null
           show_employee_commission: boolean
@@ -238,6 +239,12 @@ export type Database = {
           whatsapp_followup_days: number
           whatsapp_followup_enabled: boolean
           whatsapp_followup_message: string
+          whatsapp_reminder_message: string
+          store_enabled: boolean
+          store_show_services: boolean
+          store_show_products: boolean
+          store_whatsapp: string | null
+          store_whatsapp_message: string | null
           working_hours: Json | null
           zip_code: string | null
         }
@@ -266,6 +273,7 @@ export type Database = {
           public_booking_enabled?: boolean | null
           public_booking_slug?: string | null
           reminder_hours_before?: number | null
+          reminder_message?: string
           send_reminders?: boolean | null
           service_interval_minutes?: number | null
           show_employee_commission?: boolean
@@ -280,6 +288,12 @@ export type Database = {
           whatsapp_followup_days?: number
           whatsapp_followup_enabled?: boolean
           whatsapp_followup_message?: string
+          whatsapp_reminder_message?: string
+          store_enabled?: boolean
+          store_show_services?: boolean
+          store_show_products?: boolean
+          store_whatsapp?: string | null
+          store_whatsapp_message?: string | null
           working_hours?: Json | null
           zip_code?: string | null
         }
