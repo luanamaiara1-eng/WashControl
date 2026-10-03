@@ -38,6 +38,7 @@ import ConfiguracoesPage from "./Configuracoes";
 import PagamentosFuncionariosPage from "./PagamentosFuncionarios";
 import { useAppointments, useAppointmentsRealtime } from "@/hooks/useAppointments";
 import { useUpcomingExpenses } from "@/hooks/useFixedExpenses";
+import UserDashboardHome from "./UserDashboardHome";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -96,7 +97,7 @@ const Dashboard = () => {
     }
     
     // Default dashboard content
-    return <DashboardHome />;
+    return <UserDashboardHome />;
   };
 
   const getPageTitle = () => {
