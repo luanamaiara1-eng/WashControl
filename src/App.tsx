@@ -21,7 +21,6 @@ import PublicBooking from "./pages/PublicBooking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import CancelBooking from "./pages/CancelBooking";
 import PublicStore from "./pages/PublicStore";
-import AjudaPage from "./pages/Ajuda";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 
 const queryClient = new QueryClient();
