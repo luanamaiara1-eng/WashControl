@@ -33,6 +33,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
     whatsapp_followup_enabled: false,
     whatsapp_followup_days: 15,
     whatsapp_followup_message: "",
+    whatsapp_reminder_message: "",
   });
 
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
@@ -48,6 +49,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
         whatsapp_followup_enabled: settings.whatsapp_followup_enabled ?? false,
         whatsapp_followup_days: settings.whatsapp_followup_days ?? 15,
         whatsapp_followup_message: settings.whatsapp_followup_message ?? "",
+        whatsapp_reminder_message: settings.whatsapp_reminder_message ?? "Olá {{nome}}! 🚗 Seu atendimento está agendado para {{data}} às {{hora}}.\\n\\nServiço: {{servico}}\\n\\nSe precisar remarcar, fale conosco.",
       });
     }
   }, [settings]);
@@ -120,6 +122,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
           whatsapp_followup_enabled: formData.whatsapp_followup_enabled,
           whatsapp_followup_days: formData.whatsapp_followup_days,
           whatsapp_followup_message: formData.whatsapp_followup_message,
+          whatsapp_reminder_message: formData.whatsapp_reminder_message,
         })
         .eq("user_id", user.id);
 
@@ -234,6 +237,29 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
               </ul>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Lembrete de agendamento</CardTitle>
+          <CardDescription>Envie automaticamente um lembrete pelo WhatsApp antes do horário marcado.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Ativar lembretes</Label>
+              <p className="text-xs text-muted-foreground">Usa a configuração de lembretes da aba Preferências.</p>
+            </div>
+            <span className="text-sm text-muted-foreground">{settings?.send_reminders ? `Ativado · ${settings.reminder_hours_before || 24}h antes` : "Desativado"}</span>
+          </div>
+          <div className="space-y-2">
+            <Label>Mensagem do lembrete</Label>
+            <Textarea rows={5} value={formData.whatsapp_reminder_message} onChange={(e) => setFormData({ ...formData, whatsapp_reminder_message: e.target.value })} />
+            <p className="text-xs text-muted-foreground">
+              Variáveis: <code className="px-1 bg-muted rounded">{"{{nome}}"}</code>, <code className="px-1 bg-muted rounded">{"{{data}}"}</code>, <code className="px-1 bg-muted rounded">{"{{hora}}"}</code>, <code className="px-1 bg-muted rounded">{"{{servico}}"}</code>.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
