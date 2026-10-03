@@ -54,8 +54,7 @@ export function OnboardingWizard({ forceOpen = false, onClose }: { forceOpen?: b
     if (!user) return;
     const { error } = await supabase
       .from("business_settings")
-      .update({ onboarding_completed: true } as any)
-      .eq("user_id", user.id);
+      .upsert({ user_id: user.id, onboarding_completed: true } as any, { onConflict: "user_id" });
     if (error) {
       toast.error("Não foi possível salvar o progresso. Tente novamente.");
       return;
