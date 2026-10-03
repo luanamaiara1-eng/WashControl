@@ -39,6 +39,7 @@ export interface BusinessSettings {
   whatsapp_followup_days: number;
   whatsapp_followup_message: string;
   evolution_instance_name: string | null;
+  onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +98,7 @@ export const useBusinessSettings = () => {
           whatsapp_followup_message:
             "Oi {{nome}}! Já faz {{dias}} dias desde a sua última lavagem. Que tal agendar um horário pra deixar o carro novo de novo? 🚗✨",
           evolution_instance_name: null,
+          onboarding_completed: false,
           created_at: "",
           updated_at: "",
         } as BusinessSettings;
