@@ -8,6 +8,7 @@ import {
   Calendar, 
   Car, 
   Wrench, 
+  Store,
   Users, 
   DollarSign, 
   BarChart3,
@@ -35,6 +36,7 @@ import VeiculosPage from "./Veiculos";
 import FinanceiroPage from "./Financeiro";
 import RelatoriosPage from "./Relatorios";
 import ConfiguracoesPage from "./Configuracoes";
+import LojaPage from "./Loja";
 import PagamentosFuncionariosPage from "./PagamentosFuncionarios";
 import { useAppointments, useAppointmentsRealtime } from "@/hooks/useAppointments";
 import { useUpcomingExpenses } from "@/hooks/useFixedExpenses";
@@ -55,6 +57,7 @@ const Dashboard = () => {
     { icon: Users, label: "Clientes", href: "/dashboard/clientes" },
     { icon: Car, label: "Veículos", href: "/dashboard/veiculos" },
     { icon: Wrench, label: "Serviços", href: "/dashboard/servicos" },
+    { icon: Store, label: "Vitrine", href: "/dashboard/loja" },
     { icon: Users, label: "Funcionários", href: "/dashboard/funcionarios" },
     { icon: Wallet, label: "Pagamentos Func.", href: "/dashboard/pagamentos-funcionarios" },
     { icon: DollarSign, label: "Financeiro", href: "/dashboard/financeiro" },
@@ -79,6 +82,9 @@ const Dashboard = () => {
     }
     if (currentPath === "/dashboard/servicos") {
       return <ServicosPage />;
+    }
+    if (currentPath === "/dashboard/loja") {
+      return <LojaPage />;
     }
     if (currentPath === "/dashboard/funcionarios") {
       return <FuncionariosPage />;
@@ -105,6 +111,7 @@ const Dashboard = () => {
     if (currentPath === "/dashboard/clientes") return "Clientes";
     if (currentPath === "/dashboard/veiculos") return "Veículos";
     if (currentPath === "/dashboard/servicos") return "Serviços";
+    if (currentPath === "/dashboard/loja") return "Vitrine";
     if (currentPath === "/dashboard/funcionarios") return "Funcionários";
     if (currentPath === "/dashboard/financeiro") return "Financeiro";
     if (currentPath === "/dashboard/pagamentos-funcionarios") return "Pagamentos de Funcionários";
