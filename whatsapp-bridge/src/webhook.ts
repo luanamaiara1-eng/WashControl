@@ -102,18 +102,19 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     if (!business) return;
 
     if (!business.subscription_active) {
+      if (!business.evolution_instance_token) return;
       await evolution.sendText(
-        business.evolution_instance_token!,
+        business.evolution_instance_token,
         senderPhone,
         "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.",
       );
       return;
     }
 
-    if (!business.whatsapp_auto_register_enabled) return;
+    if (!business.whatsapp_auto_register_enabled || !business.evolution_instance_token) return;
 
     const reply = await resolveReply(business.user_id, business.timezone, senderPhone, text);
-    if (reply) await evolution.sendText(instanceName, senderPhone, reply);
+    if (reply) await evolution.sendText(business.evolution_instance_token, senderPhone, reply);
   } catch (err) {
     console.error("webhook error:", err);
   }
