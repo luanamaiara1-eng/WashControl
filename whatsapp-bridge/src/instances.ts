@@ -16,17 +16,30 @@ function newInstanceToken(): string {
 }
 
 async function getOrCreateInstanceCredentials(userId: string): Promise<{ name: string; token: string }> {
-  const { data, error } = await supabaseAdmin
+  const { data: settings, error: settingsError } = await supabaseAdmin
     .from("business_settings")
-    .select("evolution_instance_name, evolution_instance_token")
+    .select("evolution_instance_name")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw error;
+  if (settingsError) throw settingsError;
 
-  const name = data?.evolution_instance_name || instanceNameFor(userId);
-  if (data?.evolution_instance_token) return { name, token: data.evolution_instance_token };
+  const { data: existingCredentials, error: credentialsError } = await supabaseAdmin
+    .from("whatsapp_instance_credentials")
+    .select("instance_name, instance_token")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
 
-  // Recover a token if the instance already exists in Evolution Go.
+  if (existingCredentials?.instance_name && existingCredentials.instance_token) {
+    return {
+      name: existingCredentials.instance_name,
+      token: existingCredentials.instance_token,
+    };
+  }
+
+  const name = settings?.evolution_instance_name || instanceNameFor(userId);
+
+  // Recover a token if this instance already exists in Evolution Go.
   try {
     const all = await evolution.listInstances();
     const existing = (all.data ?? []).find((item) => item.name === name);
@@ -34,45 +47,59 @@ async function getOrCreateInstanceCredentials(userId: string): Promise<{ name: s
       const info = await evolution.getInstanceInfo(existing.id);
       const token = info.data?.token;
       if (token) {
-        const { error: updateError } = await supabaseAdmin
-          .from("business_settings")
-          .update({ evolution_instance_name: name, evolution_instance_token: token })
-          .eq("user_id", userId);
-        if (updateError) throw updateError;
+        const { error } = await supabaseAdmin
+          .from("whatsapp_instance_credentials")
+          .upsert(
+            { user_id: userId, instance_name: name, instance_token: token },
+            { onConflict: "user_id" },
+          );
+        if (error) throw error;
         return { name, token };
       }
     }
-  } catch {
-    // If it cannot be recovered, create a fresh instance token below.
+  } catch (error) {
+    console.error("Could not recover existing Evolution Go token:", error);
   }
 
   const token = newInstanceToken();
   const { error: upsertError } = await supabaseAdmin
-    .from("business_settings")
+    .from("whatsapp_instance_credentials")
     .upsert(
-      { user_id: userId, evolution_instance_name: name, evolution_instance_token: token },
+      { user_id: userId, instance_name: name, instance_token: token },
       { onConflict: "user_id" },
     );
   if (upsertError) throw upsertError;
+
+  if (!settings?.evolution_instance_name) {
+    const { error } = await supabaseAdmin
+      .from("business_settings")
+      .update({ evolution_instance_name: name })
+      .eq("user_id", userId);
+    if (error) throw error;
+  }
 
   return { name, token };
 }
 
 instancesRouter.get("/status", async (req: AuthedRequest, res) => {
   try {
-    const { data } = await supabaseAdmin
-      .from("business_settings")
-      .select("evolution_instance_name, evolution_instance_token")
+    const { data: credentials } = await supabaseAdmin
+      .from("whatsapp_instance_credentials")
+      .select("instance_name, instance_token")
       .eq("user_id", req.userId)
       .maybeSingle();
 
-    if (!data?.evolution_instance_name || !data.evolution_instance_token) {
+    if (!credentials?.instance_name || !credentials.instance_token) {
       return res.json({ hasInstance: false, connected: false });
     }
 
-    const state = await evolution.getConnectionState(data.evolution_instance_token);
+    const state = await evolution.getConnectionState(credentials.instance_token);
     const connected = state.instance?.state === "open";
-    res.json({ hasInstance: true, connected, instanceName: data.evolution_instance_name });
+    res.json({
+      hasInstance: true,
+      connected,
+      instanceName: credentials.instance_name,
+    });
   } catch (err) {
     console.error("WhatsApp status error:", err);
     res.status(502).json({ error: (err as Error).message });
@@ -84,9 +111,6 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
     const userId = req.userId!;
     const { name: instanceName, token: instanceToken } = await getOrCreateInstanceCredentials(userId);
 
-    // Create only when the instance does not already exist. Evolution Go uses
-    // GLOBAL_API_KEY for this administrative operation and a per-instance
-    // token for all subsequent operations.
     let exists = false;
     try {
       const all = await evolution.listInstances();
@@ -126,13 +150,13 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
 instancesRouter.post("/disconnect", async (req: AuthedRequest, res) => {
   try {
     const { data } = await supabaseAdmin
-      .from("business_settings")
-      .select("evolution_instance_token")
+      .from("whatsapp_instance_credentials")
+      .select("instance_token")
       .eq("user_id", req.userId)
       .maybeSingle();
 
-    if (data?.evolution_instance_token) {
-      await evolution.logoutInstance(data.evolution_instance_token);
+    if (data?.instance_token) {
+      await evolution.logoutInstance(data.instance_token);
     }
     res.json({ ok: true });
   } catch (err) {
