@@ -45,7 +45,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: isAdmin } = useIsAdmin();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 1024);
 
   const currentPath = location.pathname;
 
@@ -200,7 +200,7 @@ const Dashboard = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-sidebar-foreground truncate">
-                      Lava-Rápido Express
+                      Meu negócio
                     </p>
                     <p className="text-xs text-sidebar-foreground/60 truncate">
                       {user?.email}
@@ -376,7 +376,7 @@ const DashboardHome = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div
             key={stat.label}
