@@ -1,0 +1,17 @@
+alter table public.business_settings add column if not exists store_enabled boolean not null default false, add column if not exists store_show_services boolean not null default true, add column if not exists store_show_products boolean not null default true, add column if not exists store_whatsapp text;
+create table if not exists public.store_categories (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, name text not null, sort_order integer not null default 0, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists public.store_products (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, category_id uuid references public.store_categories(id) on delete set null, name text not null, description text, price numeric(12,2) not null default 0, image_url text, is_active boolean not null default true, sort_order integer not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table public.store_categories enable row level security;
+alter table public.store_products enable row level security;
+drop policy if exists "Users manage own store categories" on public.store_categories;
+create policy "Users manage own store categories" on public.store_categories for all to authenticated using (user_id=auth.uid()) with check (user_id=auth.uid());
+drop policy if exists "Users manage own store products" on public.store_products;
+create policy "Users manage own store products" on public.store_products for all to authenticated using (user_id=auth.uid()) with check (user_id=auth.uid());
+create index if not exists store_categories_user_idx on public.store_categories(user_id,sort_order);
+create index if not exists store_products_user_idx on public.store_products(user_id,sort_order);
+drop view if exists public.store_public_businesses;
+create view public.store_public_businesses as select bs.user_id,bs.business_name,bs.logo_url,bs.primary_color,bs.public_booking_slug,bs.store_whatsapp,bs.store_show_services,bs.store_show_products from public.business_settings bs where bs.store_enabled=true and bs.public_booking_slug is not null;
+drop view if exists public.store_public_products;
+create view public.store_public_products as select p.id,p.user_id,p.category_id,p.name,p.description,p.price,p.image_url,p.sort_order,c.name as category_name from public.store_products p left join public.store_categories c on c.id=p.category_id and c.is_active=true join public.business_settings bs on bs.user_id=p.user_id where p.is_active=true and bs.store_enabled=true;
+grant select on public.store_public_businesses to anon,authenticated;
+grant select on public.store_public_products to anon,authenticated;
