@@ -224,7 +224,6 @@ export type Database = {
           public_booking_enabled: boolean | null
           public_booking_slug: string | null
           reminder_hours_before: number | null
-          reminder_message: string
           send_reminders: boolean | null
           service_interval_minutes: number | null
           show_employee_commission: boolean
@@ -273,7 +272,6 @@ export type Database = {
           public_booking_enabled?: boolean | null
           public_booking_slug?: string | null
           reminder_hours_before?: number | null
-          reminder_message?: string
           send_reminders?: boolean | null
           service_interval_minutes?: number | null
           show_employee_commission?: boolean
