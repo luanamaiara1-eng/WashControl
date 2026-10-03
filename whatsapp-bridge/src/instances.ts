@@ -100,7 +100,17 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
     }
 
     await evolution.connectInstance(instanceName, instanceToken);
-    const qr = await evolution.getConnectQrCode(instanceToken);
+
+    let qr: { base64?: string; pairingCode?: string } = {};
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        qr = await evolution.getConnectQrCode(instanceToken);
+        if (qr.base64 || qr.pairingCode) break;
+      } catch (error) {
+        if (attempt === 4) throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 
     res.json({
       instanceName,
