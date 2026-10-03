@@ -18,7 +18,7 @@ const money = (value = 0) => value.toLocaleString("pt-BR", { style: "currency", 
 const Admin = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 1024);
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useAllUsers();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useAdminStats();
   const updateSubscription = useUpdateUserSubscription();
@@ -71,7 +71,7 @@ const Admin = () => {
       </header>
 
       <div className="p-4 lg:p-8 space-y-6">
-        <section className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {[
             ["Usuários", stats?.totalUsers ?? 0, Users, "bg-primary/10 text-primary"],
             ["Ativos", stats?.activeUsers ?? 0, UserCheck, "bg-success/10 text-success"],
@@ -80,7 +80,7 @@ const Admin = () => {
           ].map(([label,value,Icon,style]:any)=><Card key={label} className="rounded-2xl"><CardContent className="p-5"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-bold mt-1">{statsLoading?"...":value}</p></div><div className={`w-11 h-11 rounded-xl flex items-center justify-center ${style}`}><Icon className="w-5 h-5"/></div></div></CardContent></Card>)}
         </section>
 
-        <section className="grid lg:grid-cols-3 gap-6">
+        <section className="grid lg:grid-cols-3 gap-6 min-w-0">
           <Card className="lg:col-span-2 rounded-2xl"><CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4"/>Crescimento de usuários</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={260}><AreaChart data={stats?.usersByMonth || []}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))"/><XAxis dataKey="month" fontSize={12}/><YAxis allowDecimals={false} fontSize={12}/><Tooltip/><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.14} strokeWidth={2}/></AreaChart></ResponsiveContainer></CardContent></Card>
           <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Distribuição dos planos</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={stats?.planDistribution || []} dataKey="value" nameKey="name" innerRadius={58} outerRadius={90} paddingAngle={3}>{(stats?.planDistribution || []).map((_:any,i:number)=><Cell key={i} fill={["hsl(var(--primary))","hsl(var(--chart-2))","hsl(var(--chart-3))","hsl(var(--chart-4))"][i%4]}/>)}</Pie><Tooltip/></PieChart></ResponsiveContainer><div className="space-y-2">{(stats?.planDistribution||[]).map((p:any)=><div key={p.name} className="flex justify-between text-sm"><span>{p.name}</span><b>{p.value}</b></div>)}</div></CardContent></Card>
         </section>
