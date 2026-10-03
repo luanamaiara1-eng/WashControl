@@ -21,6 +21,7 @@ import PublicBooking from "./pages/PublicBooking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import CancelBooking from "./pages/CancelBooking";
 import PublicStore from "./pages/PublicStore";
+import AjudaPage from "./pages/Ajuda";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,11 @@ const App = () => (
               <Route path="/agendamento-confirmado/:token" element={<BookingConfirmation />} />
               <Route path="/cancelar/:token" element={<CancelBooking />} />
               <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/ajuda" element={
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
