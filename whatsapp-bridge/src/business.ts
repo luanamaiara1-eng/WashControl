@@ -6,6 +6,7 @@ export interface Business {
   timezone: string | null;
   plan_slug: string | null;
   subscription_active: boolean;
+  evolution_instance_token: string | null;
 }
 
 export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
