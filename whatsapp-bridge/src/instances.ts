@@ -126,7 +126,7 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
     await evolution.connectInstance(instanceName, instanceToken);
 
     let qr: { base64?: string; pairingCode?: string } = {};
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 15; attempt++) {
       try {
         qr = await evolution.getConnectQrCode(instanceToken);
         if (qr.base64 || qr.pairingCode) break;
