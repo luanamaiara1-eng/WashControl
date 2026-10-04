@@ -57,11 +57,15 @@ export async function connectInstance(instanceName: string, instanceToken: strin
 export async function getConnectQrCode(instanceToken: string): Promise<{ base64?: string; pairingCode?: string }> {
   const response = await evolutionInstanceFetch(instanceToken, "/instance/qr");
   const data = response?.data ?? response ?? {};
+  // Evolution Go versions may serialize these fields with either lowercase
+  // or uppercase initial letters. Accept both forms.
+  const qrcode = data.qrcode ?? data.Qrcode;
+  const code = data.code ?? data.Code;
   return {
-    base64: data.qrcode
-      ? String(data.qrcode).startsWith("data:") ? data.qrcode : `data:image/png;base64,${data.qrcode}`
+    base64: qrcode
+      ? String(qrcode).startsWith("data:") ? qrcode : `data:image/png;base64,${qrcode}`
       : undefined,
-    pairingCode: data.code,
+    pairingCode: code,
   };
 }
 
