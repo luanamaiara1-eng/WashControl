@@ -291,7 +291,7 @@ const Dashboard = () => {
 
       <OnboardingWizard forceOpen={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
 
-      {/* Mobile Sidebar Overlay */
+      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
