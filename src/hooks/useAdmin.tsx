@@ -139,8 +139,8 @@ export const useAdminStats = () => {
       const [{ data: profiles, error: profilesError }, { data: subscriptions, error: subscriptionsError }, { data: plans, error: plansError }] =
         await Promise.all([
           supabase.from("profiles").select("id, created_at, is_active"),
-          db.from("subscriptions").select("id, user_id, plan, plan_id, status, started_at, expires_at"),
-          db.from("saas_plans").select("id, slug, name, price_monthly, price_yearly"),
+          supabase.from("subscriptions").select("id, user_id, plan, plan_id, status, started_at, expires_at"),
+          supabase.from("saas_plans").select("id, slug, name, price_monthly, price_yearly"),
         ]);
       if (profilesError) throw profilesError;
       if (subscriptionsError) throw subscriptionsError;

@@ -1,41 +1,53 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, PlayCircle, BookOpen, MessageCircle, Store, Calendar, Wrench, Users, Car, DollarSign, BarChart3, Settings } from "lucide-react";
+import { Search, PlayCircle, BookOpen, MessageCircle, Store, Calendar, DollarSign, Settings } from "lucide-react";
+import { InstallNotifications } from "@/components/InstallNotifications";
 
 type HelpVideo = {
+  id: string;
   title: string;
-  description: string;
+  description: string | null;
   category: string;
-  icon: typeof PlayCircle;
-  youtubeUrl?: string;
+  video_url: string | null;
 };
 
-const videos: HelpVideo[] = [
-  { title: "Primeiros passos no WashControl", description: "Conheça o painel e configure seu negócio.", category: "Começando", icon: BookOpen },
-  { title: "Como cadastrar serviços", description: "Crie seus serviços, preços e duração.", category: "Começando", icon: Wrench },
-  { title: "Clientes e veículos", description: "Cadastre clientes, veículos e mantenha o histórico organizado.", category: "Operação", icon: Car },
-  { title: "Como usar os agendamentos", description: "Crie, acompanhe e atualize seus atendimentos.", category: "Operação", icon: Calendar },
-  { title: "Funcionários e equipe", description: "Organize sua equipe e responsáveis pelos serviços.", category: "Operação", icon: Users },
-  { title: "WhatsApp e automações", description: "Conecte seu WhatsApp e configure comandos e mensagens.", category: "Automação", icon: MessageCircle },
-  { title: "Lembretes automáticos", description: "Entenda como os lembretes de agendamento funcionam.", category: "Automação", icon: MessageCircle },
-  { title: "Vitrine e pedidos pelo WhatsApp", description: "Publique produtos e serviços e receba pedidos.", category: "Vendas", icon: Store },
-  { title: "Financeiro", description: "Registre entradas, saídas e acompanhe seu caixa.", category: "Gestão", icon: DollarSign },
-  { title: "Relatórios", description: "Acompanhe os principais números do negócio.", category: "Gestão", icon: BarChart3 },
-  { title: "Configurações", description: "Ajuste dados do estabelecimento, horários e preferências.", category: "Configurações", icon: Settings },
-];
+const categoryIcons: Record<string, typeof PlayCircle> = {
+  Começando: BookOpen,
+  Operação: Calendar,
+  Automação: MessageCircle,
+  Vendas: Store,
+  Gestão: DollarSign,
+  Configurações: Settings,
+};
 
 const categories = ["Todos", "Começando", "Operação", "Automação", "Vendas", "Gestão", "Configurações"];
 
 export default function AjudaPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Todos");
+  const [videos, setVideos] = useState<HelpVideo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("help_videos")
+      .select("id, title, description, category, video_url")
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("created_at")
+      .then(({ data }) => {
+        setVideos(data || []);
+        setLoading(false);
+      });
+  }, []);
 
   const filtered = useMemo(() => videos.filter((video) => {
-    const text = `${video.title} ${video.description}`.toLowerCase();
+    const text = `${video.title} ${video.description || ""}`.toLowerCase();
     return (category === "Todos" || video.category === category) && text.includes(search.toLowerCase());
-  }), [search, category]);
+  }), [videos, search, category]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -43,6 +55,8 @@ export default function AjudaPage() {
         <h2 className="text-2xl font-bold">Central de Ajuda</h2>
         <p className="mt-1 text-muted-foreground">Aprenda a usar o WashControl com tutoriais rápidos.</p>
       </div>
+
+      <InstallNotifications />
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -70,36 +84,39 @@ export default function AjudaPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((video) => {
-          const Icon = video.icon;
-          const hasVideo = Boolean(video.youtubeUrl);
-          return (
-            <Card key={video.title} className="overflow-hidden">
-              <div className="aspect-video bg-muted flex items-center justify-center">
-                {hasVideo ? (
-                  <iframe className="h-full w-full" src={video.youtubeUrl} title={video.title} allowFullScreen />
-                ) : (
-                  <div className="text-center p-6">
-                    <Icon className="mx-auto h-10 w-10 text-primary" />
-                    <p className="mt-2 text-sm font-medium">Vídeo em breve</p>
-                    <p className="mt-1 text-xs text-muted-foreground">O tutorial será disponibilizado aqui.</p>
-                  </div>
-                )}
-              </div>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{video.title}</CardTitle>
-                <CardDescription>{video.category}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{video.description}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Carregando...</p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((video) => {
+            const Icon = categoryIcons[video.category] || PlayCircle;
+            return (
+              <Card key={video.id} className="overflow-hidden">
+                <div className="aspect-video bg-muted flex items-center justify-center">
+                  {video.video_url ? (
+                    <iframe className="h-full w-full" src={video.video_url} title={video.title} allowFullScreen />
+                  ) : (
+                    <div className="text-center p-6">
+                      <Icon className="mx-auto h-10 w-10 text-primary" />
+                      <p className="mt-2 text-sm font-medium">Vídeo em breve</p>
+                      <p className="mt-1 text-xs text-muted-foreground">O tutorial será disponibilizado aqui.</p>
+                    </div>
+                  )}
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{video.title}</CardTitle>
+                  <CardDescription>{video.category}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{video.description}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="rounded-xl border p-10 text-center text-muted-foreground">Nenhum tutorial encontrado.</div>
       )}
 

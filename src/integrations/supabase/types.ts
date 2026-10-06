@@ -219,6 +219,7 @@ export type Database = {
           max_simultaneous_vehicles: number | null
           min_advance_hours: number | null
           note_footer_message: string | null
+          onboarding_completed: boolean
           phone: string | null
           primary_color: string | null
           public_booking_enabled: boolean | null
@@ -267,6 +268,7 @@ export type Database = {
           max_simultaneous_vehicles?: number | null
           min_advance_hours?: number | null
           note_footer_message?: string | null
+          onboarding_completed?: boolean
           phone?: string | null
           primary_color?: string | null
           public_booking_enabled?: boolean | null
@@ -315,6 +317,7 @@ export type Database = {
           max_simultaneous_vehicles?: number | null
           min_advance_hours?: number | null
           note_footer_message?: string | null
+          onboarding_completed?: boolean
           phone?: string | null
           primary_color?: string | null
           public_booking_enabled?: boolean | null
@@ -334,6 +337,12 @@ export type Database = {
           whatsapp_followup_days?: number
           whatsapp_followup_enabled?: boolean
           whatsapp_followup_message?: string
+          whatsapp_reminder_message?: string
+          store_enabled?: boolean
+          store_show_services?: boolean
+          store_show_products?: boolean
+          store_whatsapp?: string | null
+          store_whatsapp_message?: string | null
           working_hours?: Json | null
           zip_code?: string | null
         }
@@ -833,6 +842,45 @@ export type Database = {
         }
         Relationships: []
       }
+      help_videos: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          sort_order: number
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       package_usage: {
         Row: {
           appointment_id: string | null
@@ -872,6 +920,51 @@ export type Database = {
           },
         ]
       }
+      admin_notification_state: {
+        Row: {
+          key: string
+          last_seen: string
+        }
+        Insert: {
+          key: string
+          last_seen?: string
+        }
+        Update: {
+          key?: string
+          last_seen?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           business_name: string | null
@@ -895,6 +988,57 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saas_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          max_employees: number
+          max_users: number
+          max_vehicles: number
+          max_whatsapp_central: number
+          name: string
+          price_monthly: number
+          price_yearly: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_employees?: number
+          max_users?: number
+          max_vehicles?: number
+          max_whatsapp_central?: number
+          name: string
+          price_monthly?: number
+          price_yearly?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_employees?: number
+          max_users?: number
+          max_vehicles?: number
+          max_whatsapp_central?: number
+          name?: string
+          price_monthly?: number
+          price_yearly?: number
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -941,6 +1085,7 @@ export type Database = {
           expires_at: string | null
           id: string
           plan: Database["public"]["Enums"]["subscription_plan"]
+          plan_id: string | null
           started_at: string
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
@@ -951,6 +1096,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
+          plan_id?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
@@ -961,12 +1107,21 @@ export type Database = {
           expires_at?: string | null
           id?: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
+          plan_id?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "saas_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -1082,6 +1237,123 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "vehicles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_authorized_numbers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          permissions: Json
+          phone: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          permissions?: Json
+          phone: string
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          permissions?: Json
+          phone?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_instance_credentials: {
+        Row: {
+          created_at: string
+          instance_name: string
+          instance_token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          instance_name: string
+          instance_token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          instance_name?: string
+          instance_token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_message_logs: {
+        Row: {
+          appointment_id: string | null
+          client_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          message: string
+          message_type: string
+          recipient_phone: string
+          sent_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message: string
+          message_type: string
+          recipient_phone: string
+          sent_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message?: string
+          message_type?: string
+          recipient_phone?: string
+          sent_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_logs_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
