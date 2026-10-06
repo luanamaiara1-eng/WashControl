@@ -96,6 +96,30 @@ empresa (sem diferenciar maiúsculas/acentos, e aceitando nome parcial). Se
 não encontrar (ou o serviço/funcionário ainda não existir), ele responde
 pedindo pra cadastrar primeiro, em vez de criar algo errado adivinhando.
 
+## Notificações push (instalação do app + avisos pro Super Admin)
+
+O bridge também manda notificações push (Web Push, funciona com o app
+instalado como PWA no Android e no iPhone a partir do iOS 16.4):
+
+1. Gere um par de chaves VAPID uma única vez: `npx web-push generate-vapid-keys`.
+2. Coloque a chave **pública** em `VITE_VAPID_PUBLIC_KEY` no `.env` do
+   frontend (raiz do projeto) e repasse pelo build (já configurado no
+   `Dockerfile`).
+3. Coloque as duas chaves (`VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY`) no
+   `.env` deste bridge, junto com `VAPID_CONTACT_EMAIL`.
+4. Rode a migration `supabase/migrations/20261006140000_push_notifications.sql`.
+
+Com isso:
+- Qualquer usuário pode ativar notificações na Central de Ajuda do app
+  (aba que também explica como instalar o PWA no Android/iPhone).
+- O bridge verifica a cada 2 minutos (`ADMIN_NOTIFICATIONS_CRON_SCHEDULE`)
+  se apareceu **cadastro novo** ou **assinatura nova/ativada**, e manda uma
+  notificação push pra todo usuário com papel `admin` (Super Admin) que
+  tiver ativado notificações no próprio aparelho.
+
+Sem as chaves VAPID configuradas, essa checagem simplesmente fica desligada
+(log avisando isso) — o resto do bridge funciona normalmente.
+
 ## Sobre "carro" no cadastro via WhatsApp
 
 Como o WhatsApp só manda texto livre (sem placa confiável), o carro

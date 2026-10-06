@@ -6,6 +6,7 @@ import { webhookRouter } from "./webhook.js";
 import { instancesRouter } from "./instances.js";
 import { adminRouter } from "./admin.js";
 import { sendDueFollowups, sendDueAppointmentReminders } from "./followups.js";
+import { checkNewSignups, checkNewSubscriptions } from "./adminNotifications.js";
 
 const app = express();
 app.use(cors());
@@ -26,3 +27,13 @@ cron.schedule(config.followupCronSchedule, async () => {
   const reminders = await sendDueAppointmentReminders();
   console.log("WhatsApp automation finished:", { followups: result, reminders });
 });
+
+if (config.vapidPublicKey && config.vapidPrivateKey) {
+  cron.schedule(config.adminNotificationsCronSchedule, async () => {
+    const signups = await checkNewSignups();
+    const subscriptions = await checkNewSubscriptions();
+    if (signups || subscriptions) console.log("Admin notifications sent:", { signups, subscriptions });
+  });
+} else {
+  console.log("VAPID keys not set — admin push notifications disabled.");
+}

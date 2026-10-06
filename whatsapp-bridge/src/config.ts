@@ -24,4 +24,12 @@ export const config = {
 
   // Daily cron schedule (default: every day at 09:00 server time)
   followupCronSchedule: process.env.FOLLOWUP_CRON_SCHEDULE || "0 9 * * *",
+
+  // Web Push (generate with: npx web-push generate-vapid-keys)
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
+  vapidContactEmail: process.env.VAPID_CONTACT_EMAIL || "admin@washcontrol.app",
+
+  // How often to check for new signups/subscriptions to notify admins about
+  adminNotificationsCronSchedule: process.env.ADMIN_NOTIFICATIONS_CRON_SCHEDULE || "*/2 * * * *",
 };
