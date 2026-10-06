@@ -770,6 +770,27 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_settings: {
+        Row: {
+          id: boolean
+          base_url: string
+          api_key: string
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          base_url: string
+          api_key: string
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          base_url?: string
+          api_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fixed_expenses: {
         Row: {
           amount: number

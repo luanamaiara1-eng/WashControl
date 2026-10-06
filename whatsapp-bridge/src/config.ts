@@ -13,8 +13,10 @@ export const config = {
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
   supabaseJwtSecret: required("SUPABASE_JWT_SECRET"),
 
-  evolutionBaseUrl: required("EVOLUTION_BASE_URL").replace(/\/$/, ""),
-  evolutionApiKey: required("EVOLUTION_API_KEY"),
+  // Fallback only — the primary source is Super Admin > Evolution Go
+  // (see evolutionSettings.ts), stored in the evolution_settings table.
+  evolutionBaseUrl: process.env.EVOLUTION_BASE_URL?.replace(/\/$/, "") || "",
+  evolutionApiKey: process.env.EVOLUTION_API_KEY || "",
 
   // Public URL of this bridge, used when registering the webhook on each
   // Evolution instance (e.g. https://whatsapp.suaempresa.com.br)

@@ -4,6 +4,7 @@ import cron from "node-cron";
 import { config } from "./config.js";
 import { webhookRouter } from "./webhook.js";
 import { instancesRouter } from "./instances.js";
+import { adminRouter } from "./admin.js";
 import { sendDueFollowups, sendDueAppointmentReminders } from "./followups.js";
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(express.json({ limit: "5mb" }));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/webhook", webhookRouter);
 app.use("/api/whatsapp", instancesRouter);
+app.use("/api/admin", adminRouter);
 
 app.listen(config.port, () => {
   console.log(`whatsapp-bridge listening on :${config.port}`);

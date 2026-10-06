@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff } from "lucide-react";
+import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
+import { testEvolutionConnection } from "@/lib/whatsappBridge";
 import { format, addDays, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -29,6 +30,11 @@ const Admin = () => {
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoForm, setVideoForm] = useState({ id: "", title: "", description: "", category: "Começando", video_url: "", thumbnail_url: "", sort_order: 0, is_active: true });
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [evoSettings, setEvoSettings] = useState({ base_url: "", api_key: "" });
+  const [evoLoading, setEvoLoading] = useState(false);
+  const [evoSaving, setEvoSaving] = useState(false);
+  const [evoTesting, setEvoTesting] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const loadVideos = async () => {
     setVideoLoading(true);
@@ -55,7 +61,35 @@ const Admin = () => {
   };
   const deleteVideo = async (id: string) => { if (!confirm("Excluir este tutorial?")) return; const { error } = await supabase.from("help_videos").delete().eq("id", id); if (error) toast.error(error.message); else { toast.success("Tutorial excluído."); loadVideos(); } };
 
-  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); };
+  const loadEvolutionSettings = async () => {
+    setEvoLoading(true);
+    const { data, error } = await supabase.from("evolution_settings").select("*").maybeSingle();
+    if (error) toast.error("Erro ao carregar configurações da Evolution Go: " + error.message);
+    else if (data) setEvoSettings({ base_url: data.base_url, api_key: data.api_key });
+    setEvoLoading(false);
+  };
+  const saveEvolutionSettings = async () => {
+    if (!evoSettings.base_url.trim() || !evoSettings.api_key.trim()) return toast.error("Preencha a URL e a API Key da Evolution Go.");
+    setEvoSaving(true);
+    const { error } = await supabase.from("evolution_settings").upsert({ id: true, base_url: evoSettings.base_url.trim(), api_key: evoSettings.api_key.trim() });
+    setEvoSaving(false);
+    if (error) toast.error("Erro ao salvar: " + error.message);
+    else toast.success("Configurações da Evolution Go salvas!");
+  };
+  const testEvolution = async () => {
+    setEvoTesting(true);
+    try {
+      const result = await testEvolutionConnection();
+      if (result.ok) toast.success("Conexão com a Evolution Go funcionando! ✅");
+      else toast.error("Falha na conexão: " + (result.error || "erro desconhecido"));
+    } catch (e: any) {
+      toast.error("Falha na conexão: " + e.message);
+    } finally {
+      setEvoTesting(false);
+    }
+  };
+
+  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); };
   const handleLogout = async () => { await signOut(); navigate("/"); };
 
   const planLabel: Record<string,string> = { free:"Gratuito", basic:"Básico", pro:"Pro", premium:"Premium" };
@@ -69,13 +103,14 @@ const Admin = () => {
     updateSubscription.mutate({ userId, expiresAt: addDays(base, days).toISOString(), status:"active" });
   };
 
-  useEffect(() => { loadVideos(); }, []);
+  useEffect(() => { loadVideos(); loadEvolutionSettings(); }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label:"Visão geral", href:"/admin" },
     { icon: Users, label:"Usuários", href:"/admin#usuarios" },
     { icon: Crown, label:"Planos", href:"/admin/planos" },
     { icon: PlayCircle, label:"Tutoriais", href:"/admin#tutoriais" },
+    { icon: Smartphone, label:"Evolution Go", href:"/admin#evolution" },
   ];
 
   return <div className="min-h-screen bg-background flex">
@@ -145,6 +180,30 @@ const Admin = () => {
                 </div>
                 <div className="space-y-3"><h3 className="font-semibold">Tutoriais publicados</h3>{videoLoading?<p className="text-sm text-muted-foreground">Carregando...</p>:videos.length===0?<div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Nenhum tutorial cadastrado.</div>:videos.map(v=><div key={v.id} className="flex items-center gap-3 rounded-xl border p-3"><div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0"><PlayCircle className="w-5 h-5 text-primary"/></div><div className="min-w-0 flex-1"><p className="font-medium truncate">{v.title}</p><p className="text-xs text-muted-foreground">{v.category} · ordem {v.sort_order}</p></div><Button variant="ghost" size="icon" onClick={()=>setVideoForm(v)}>{v.is_active?<Eye className="w-4 h-4"/>:<EyeOff className="w-4 h-4"/>}</Button><Button variant="ghost" size="icon" onClick={()=>setVideoForm(v)}><Pencil className="w-4 h-4"/></Button><Button variant="ghost" size="icon" onClick={()=>deleteVideo(v.id)}><Trash2 className="w-4 h-4 text-destructive"/></Button></div>)}</div>
               </div>
+            </CardContent>
+          </Card>
+        </section>
+        <section id="evolution">
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Smartphone className="w-4 h-4"/>Evolution Go</CardTitle><p className="text-sm text-muted-foreground">URL e API Key da sua instância Evolution Go. O bridge do WhatsApp lê daqui — não precisa mais editar .env na VPS pra trocar isso.</p></CardHeader>
+            <CardContent className="space-y-4 max-w-xl">
+              {evoLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : <>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">URL base</label>
+                  <input className="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="https://evolution.seudominio.com.br" value={evoSettings.base_url} onChange={e=>setEvoSettings({...evoSettings,base_url:e.target.value})}/>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">API Key (global/admin)</label>
+                  <div className="relative">
+                    <input type={showApiKey?"text":"password"} className="w-full rounded-md border bg-background px-3 py-2 pr-10 text-sm" placeholder="sua-api-key" value={evoSettings.api_key} onChange={e=>setEvoSettings({...evoSettings,api_key:e.target.value})}/>
+                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={()=>setShowApiKey(!showApiKey)}>{showApiKey?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={saveEvolutionSettings} disabled={evoSaving} className="gap-2"><Plus className="w-4 h-4"/>{evoSaving?"Salvando...":"Salvar"}</Button>
+                  <Button variant="outline" onClick={testEvolution} disabled={evoTesting} className="gap-2"><Wifi className="w-4 h-4"/>{evoTesting?"Testando...":"Testar conexão"}</Button>
+                </div>
+              </>}
             </CardContent>
           </Card>
         </section>

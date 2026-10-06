@@ -1,8 +1,10 @@
 import { config } from "./config.js";
 import { toWhatsAppNumber } from "./phone.js";
+import { getEvolutionSettings } from "./evolutionSettings.js";
 
 async function evolutionFetch(path: string, apiKey: string, init: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${config.evolutionBaseUrl}${path}`, {
+  const { baseUrl } = await getEvolutionSettings();
+  const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", apikey: apiKey, ...init.headers },
   });
@@ -14,7 +16,8 @@ async function evolutionFetch(path: string, apiKey: string, init: RequestInit = 
 }
 
 async function evolutionAdminFetch(path: string, init: RequestInit = {}) {
-  return evolutionFetch(path, config.evolutionApiKey, init);
+  const { apiKey } = await getEvolutionSettings();
+  return evolutionFetch(path, apiKey, init);
 }
 
 async function evolutionInstanceFetch(instanceToken: string, path: string, init: RequestInit = {}) {

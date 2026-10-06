@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.js";
+import { supabaseAdmin } from "./supabaseAdmin.js";
 
 export interface AuthedRequest extends Request {
   userId?: string;
@@ -41,4 +42,20 @@ export async function requireSupabaseAuth(req: AuthedRequest, res: Response, nex
     console.error("Supabase token validation failed:", error);
     return res.status(502).json({ error: "Não foi possível validar a sessão no Supabase." });
   }
+}
+
+/** Use after requireSupabaseAuth to restrict a route to Super Admin users. */
+export async function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", req.userId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (error || !data) {
+    return res.status(403).json({ error: "Acesso restrito ao Super Admin." });
+  }
+
+  next();
 }
