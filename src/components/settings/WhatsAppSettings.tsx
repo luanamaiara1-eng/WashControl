@@ -81,6 +81,10 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
       const result = await connectWhatsApp();
       setQrCode(result.qrCode);
 
+      if (result.alreadyConnected) {
+        toast.success("Esse WhatsApp já estava conectado!");
+      }
+
       // Poll until the number is confirmed connected, then close the QR dialog.
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {

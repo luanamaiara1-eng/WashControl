@@ -15,6 +15,10 @@ function newInstanceToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+function isAlreadyLoggedInError(error: unknown): boolean {
+  return error instanceof Error && /already logged in/i.test(error.message);
+}
+
 async function getOrCreateInstanceCredentials(userId: string): Promise<{ name: string; token: string }> {
   const { data: settings, error: settingsError } = await supabaseAdmin
     .from("business_settings")
@@ -121,16 +125,29 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
 
     if (!exists) {
       await evolution.createInstance(instanceName, instanceToken);
+    } else {
+      // The instance may already have an active WhatsApp session from a
+      // previous pairing (e.g. a retry after the app itself was briefly
+      // unreachable) — no QR code needed in that case.
+      const state = await evolution.getConnectionState(instanceToken).catch(() => null);
+      if (state?.instance?.state === "open") {
+        return res.json({ instanceName, qrCode: null, pairingCode: null, alreadyConnected: true });
+      }
     }
 
     await evolution.connectInstance(instanceName, instanceToken);
 
     let qr: { base64?: string; pairingCode?: string } = {};
+    let alreadyConnected = false;
     for (let attempt = 0; attempt < 15; attempt++) {
       try {
         qr = await evolution.getConnectQrCode(instanceToken);
         if (qr.base64 || qr.pairingCode) break;
       } catch (error) {
+        if (isAlreadyLoggedInError(error)) {
+          alreadyConnected = true;
+          break;
+        }
         if (attempt === 4) throw error;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -140,6 +157,7 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
       instanceName,
       qrCode: qr.base64 ?? null,
       pairingCode: qr.pairingCode ?? null,
+      alreadyConnected,
     });
   } catch (err) {
     console.error("WhatsApp connect error:", err);

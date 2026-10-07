@@ -12,6 +12,7 @@ export interface WhatsAppConnectResult {
   instanceName: string;
   qrCode: string | null;
   pairingCode: string | null;
+  alreadyConnected?: boolean;
 }
 
 async function authedFetch(path: string, init: RequestInit = {}) {
