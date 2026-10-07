@@ -113,6 +113,30 @@ export async function connectCentral(): Promise<{ qrCode: string | null; pairing
   return { qrCode: qr.base64 ?? null, pairingCode: qr.pairingCode ?? null, alreadyConnected };
 }
 
+/**
+ * Fetches a fresh QR Code without re-registering the connection/webhook.
+ * Used to keep the pairing dialog's QR from going stale — unlike
+ * connectCentral(), this never calls connectInstance(), which would restart
+ * the WhatsApp session and could kick a pairing that just succeeded.
+ */
+export async function refreshCentralQr(): Promise<{ qrCode: string | null; pairingCode: string | null; alreadyConnected: boolean }> {
+  const { data } = await supabaseAdmin.from("evolution_settings").select("central_instance_token").eq("id", true).maybeSingle();
+  if (!data?.central_instance_token) return { qrCode: null, pairingCode: null, alreadyConnected: false };
+
+  const state = await evolution.getConnectionState(data.central_instance_token).catch(() => null);
+  if (state?.instance?.state === "open") {
+    return { qrCode: null, pairingCode: null, alreadyConnected: true };
+  }
+
+  try {
+    const qr = await evolution.getConnectQrCode(data.central_instance_token);
+    return { qrCode: qr.base64 ?? null, pairingCode: qr.pairingCode ?? null, alreadyConnected: false };
+  } catch (error) {
+    if (isAlreadyLoggedInError(error)) return { qrCode: null, pairingCode: null, alreadyConnected: true };
+    throw error;
+  }
+}
+
 export async function disconnectCentral(): Promise<void> {
   const { data } = await supabaseAdmin.from("evolution_settings").select("central_instance_token").eq("id", true).maybeSingle();
   if (data?.central_instance_token) {

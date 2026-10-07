@@ -174,6 +174,42 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
   }
 });
 
+// Fetches a fresh QR Code without re-registering the connection/webhook, so
+// the pairing dialog can keep itself from going stale. Unlike /connect, this
+// never calls connectInstance(), which would restart the WhatsApp session
+// and could kick a pairing that just succeeded.
+instancesRouter.get("/qr", async (req: AuthedRequest, res) => {
+  try {
+    const { data: credentials } = await supabaseAdmin
+      .from("whatsapp_instance_credentials")
+      .select("instance_token")
+      .eq("user_id", req.userId)
+      .maybeSingle();
+
+    if (!credentials?.instance_token) {
+      return res.json({ qrCode: null, pairingCode: null, alreadyConnected: false });
+    }
+
+    const state = await evolution.getConnectionState(credentials.instance_token).catch(() => null);
+    if (state?.instance?.state === "open") {
+      return res.json({ qrCode: null, pairingCode: null, alreadyConnected: true });
+    }
+
+    try {
+      const qr = await evolution.getConnectQrCode(credentials.instance_token);
+      res.json({ qrCode: qr.base64 ?? null, pairingCode: qr.pairingCode ?? null, alreadyConnected: false });
+    } catch (error) {
+      if (isAlreadyLoggedInError(error)) {
+        return res.json({ qrCode: null, pairingCode: null, alreadyConnected: true });
+      }
+      throw error;
+    }
+  } catch (err) {
+    console.error("WhatsApp QR refresh error:", err);
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
 instancesRouter.post("/disconnect", async (req: AuthedRequest, res) => {
   try {
     const { data } = await supabaseAdmin

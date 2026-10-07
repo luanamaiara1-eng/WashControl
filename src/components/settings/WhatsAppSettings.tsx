@@ -17,6 +17,7 @@ import {
   getWhatsAppStatus,
   connectWhatsApp,
   disconnectWhatsApp,
+  refreshWhatsAppQr,
   sendTestWhatsAppMessage,
   type WhatsAppStatus,
 } from "@/lib/whatsappBridge";
@@ -201,11 +202,18 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
       // fresh one while the dialog is open so it doesn't go stale before the
       // phone's camera gets a chance to scan it (especially on iOS, where
       // opening WhatsApp's scanner and granting camera access takes longer).
+      // This must only ever fetch a QR (GET /qr) — re-running the full
+      // connect flow would re-register the connection and could kick a
+      // pairing that just succeeded.
       if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
       if (!result.alreadyConnected) {
         qrRefreshRef.current = setInterval(async () => {
-          const fresh = await connectWhatsApp().catch(() => null);
-          if (fresh?.qrCode) setQrCode(fresh.qrCode);
+          const fresh = await refreshWhatsAppQr().catch(() => null);
+          if (fresh?.alreadyConnected) {
+            clearInterval(qrRefreshRef.current!);
+          } else if (fresh?.qrCode) {
+            setQrCode(fresh.qrCode);
+          }
         }, 25000);
       }
     } catch (error: any) {

@@ -48,6 +48,10 @@ export const connectWhatsApp = (): Promise<WhatsAppConnectResult> =>
 export const disconnectWhatsApp = (): Promise<{ ok: true }> =>
   authedFetch("/api/whatsapp/disconnect", { method: "POST" });
 
+// Fetches a fresh QR without restarting the connection — safe to call while
+// the pairing dialog is open, unlike connectWhatsApp().
+export const refreshWhatsAppQr = (): Promise<WhatsAppConnectResult> => authedFetch("/api/whatsapp/qr");
+
 export const sendTestWhatsAppMessage = (phone: string, message: string): Promise<{ ok: true }> =>
   authedFetch("/api/whatsapp/send-test", { method: "POST", body: JSON.stringify({ phone, message }) });
 
@@ -75,3 +79,7 @@ export const connectCentral = (): Promise<CentralConnectResult> =>
 
 export const disconnectCentral = (): Promise<{ ok: true }> =>
   authedFetch("/api/admin/central/disconnect", { method: "POST" });
+
+// Fetches a fresh QR without restarting the connection — safe to call while
+// the pairing dialog is open, unlike connectCentral().
+export const refreshCentralQr = (): Promise<CentralConnectResult> => authedFetch("/api/admin/central/qr");

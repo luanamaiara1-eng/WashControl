@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireSupabaseAuth, requireAdmin } from "./auth.js";
 import { invalidateEvolutionSettingsCache } from "./evolutionSettings.js";
 import { listInstances } from "./evolution.js";
-import { getCentralStatus, connectCentral, disconnectCentral } from "./central.js";
+import { getCentralStatus, connectCentral, disconnectCentral, refreshCentralQr } from "./central.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireSupabaseAuth, requireAdmin);
@@ -46,6 +46,15 @@ adminRouter.post("/central/disconnect", async (_req, res) => {
   try {
     await disconnectCentral();
     res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+// See refreshCentralQr's docstring — this must never call connectInstance().
+adminRouter.get("/central/qr", async (_req, res) => {
+  try {
+    res.json(await refreshCentralQr());
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }

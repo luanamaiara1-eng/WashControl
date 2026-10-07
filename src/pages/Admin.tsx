@@ -14,7 +14,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone, QrCode, Unplug, CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
-import { testEvolutionConnection, getCentralStatus, connectCentral, disconnectCentral, type CentralStatus } from "@/lib/whatsappBridge";
+import { testEvolutionConnection, getCentralStatus, connectCentral, disconnectCentral, refreshCentralQr, type CentralStatus } from "@/lib/whatsappBridge";
 import { format, addDays, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -157,12 +157,18 @@ const Admin = () => {
       // The QR Code expires after a short while — keep fetching a fresh one
       // while the dialog is open so it doesn't go stale before it gets
       // scanned (especially on iOS, where opening the scanner and granting
-      // camera access takes longer).
+      // camera access takes longer). This must only ever fetch a QR —
+      // re-running the full connect flow would re-register the connection
+      // and could kick a pairing that just succeeded.
       if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
       if (!result.alreadyConnected) {
         centralQrRefreshRef.current = setInterval(async () => {
-          const fresh = await connectCentral().catch(() => null);
-          if (fresh?.qrCode) setCentralQrCode(fresh.qrCode);
+          const fresh = await refreshCentralQr().catch(() => null);
+          if (fresh?.alreadyConnected) {
+            clearInterval(centralQrRefreshRef.current!);
+          } else if (fresh?.qrCode) {
+            setCentralQrCode(fresh.qrCode);
+          }
         }, 25000);
       }
     } catch (e: any) {
