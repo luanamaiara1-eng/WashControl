@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "./supabaseAdmin.js";
 import * as evolution from "./evolution.js";
 import { isValidBrazilianPhone } from "./phone.js";
+import { recordMessage } from "./conversations.js";
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => vars[key] ?? "");
@@ -69,6 +70,7 @@ export async function sendDueFollowups(): Promise<{ sent: number; skipped: numbe
     const message = renderTemplate(business.whatsapp_followup_message, { nome: client.name, dias: String(business.whatsapp_followup_days) });
     try {
       await evolution.sendText(tokenByUserId.get(followup.user_id)!, client.phone, message);
+      await recordMessage({ userId: followup.user_id, phone: client.phone, direction: "outbound", body: message });
       await supabaseAdmin.from("client_followups").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", followup.id);
       result.sent++;
     } catch (err) { console.error(`Failed to send followup ${followup.id}:`, err); result.failed++; }
@@ -145,6 +147,7 @@ export async function sendDueAppointmentReminders(): Promise<{ sent: number; ski
 
       try {
         await evolution.sendText(reminderTokenByUserId.get(business.user_id)!, client.phone, message);
+        await recordMessage({ userId: business.user_id, phone: client.phone, direction: "outbound", body: message });
         await supabaseAdmin.from("whatsapp_message_logs").insert({
           user_id: business.user_id, appointment_id: appointment.id, client_id: appointment.client_id,
           message_type: "appointment_reminder", recipient_phone: client.phone, message, status: "sent",

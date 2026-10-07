@@ -1,7 +1,8 @@
 import { Router } from "express";
 import * as evolution from "./evolution.js";
-import { findBusinessByAuthorizedPhone } from "./business.js";
+import { findBusinessByInstanceName, isAuthorizedPhone } from "./business.js";
 import { fromRemoteJid } from "./phone.js";
+import { recordMessage, type MessageType } from "./conversations.js";
 import {
   HELP_MESSAGE,
   isHelpTrigger,
@@ -26,14 +27,18 @@ import {
 
 export const webhookRouter = Router();
 
-function extractText(data: any): string | null {
+// Media (image/audio/document) isn't downloaded/stored yet — that's a later
+// phase — but we still record that *something* arrived so the chat doesn't
+// silently drop it, with the caption/filename as a stand-in body.
+function extractMessage(data: any): { type: MessageType; body: string | null } | null {
   const message = data?.message ?? {};
-  return (
-    message.conversation ??
-    message.extendedTextMessage?.text ??
-    message.ephemeralMessage?.message?.conversation ??
-    null
-  );
+  if (message.conversation) return { type: "text", body: message.conversation };
+  if (message.extendedTextMessage?.text) return { type: "text", body: message.extendedTextMessage.text };
+  if (message.ephemeralMessage?.message?.conversation) return { type: "text", body: message.ephemeralMessage.message.conversation };
+  if (message.imageMessage) return { type: "image", body: message.imageMessage.caption ?? null };
+  if (message.audioMessage) return { type: "audio", body: null };
+  if (message.documentMessage) return { type: "document", body: message.documentMessage.fileName ?? null };
+  return null;
 }
 
 async function resolveReply(
@@ -83,38 +88,61 @@ async function resolveReply(
 }
 
 webhookRouter.post("/evolution/:instanceName", async (req, res) => {
+  // Always ack fast so the gateway doesn't retry; errors are logged, not surfaced.
   res.status(200).json({ ok: true });
 
   try {
     const { instanceName } = req.params;
     const data = req.body?.data ?? req.body;
+
     const fromMe: boolean = data?.key?.fromMe ?? false;
     const remoteJid: string | undefined = data?.key?.remoteJid;
-    const text = extractText(data);
+    const externalId: string | undefined = data?.key?.id;
+    const message = extractMessage(data);
 
-    if (fromMe || !remoteJid || !text) return;
+    // Outbound messages are recorded where we send them (the command reply
+    // below, or POST /api/whatsapp/send-message), not from the webhook —
+    // Evolution Go echoes our own sends back here too, and there's no
+    // reliable way yet to tell that apart from something typed on the
+    // linked phone itself without risking duplicate chat rows.
+    if (fromMe || !remoteJid || !message) return;
 
-    const senderPhone = fromRemoteJid(remoteJid);
-    const business = await findBusinessByAuthorizedPhone(senderPhone);
-
-    // The central number is a shared SaaS channel, so the sender's authorized
-    // phone is the tenant boundary. Never infer the company from message text.
+    const business = await findBusinessByInstanceName(instanceName);
     if (!business) return;
 
+    const senderPhone = fromRemoteJid(remoteJid);
+
+    // Every inbound message is recorded so it shows up in the app's chat,
+    // whether or not the sender is allowed to issue commands.
+    await recordMessage({
+      userId: business.user_id,
+      phone: senderPhone,
+      direction: "inbound",
+      type: message.type,
+      body: message.body,
+      externalId,
+    });
+
+    if (!business.evolution_instance_token || message.type !== "text" || !message.body) return;
+
     if (!business.subscription_active) {
-      if (!business.evolution_instance_token) return;
-      await evolution.sendText(
-        business.evolution_instance_token,
-        senderPhone,
-        "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.",
-      );
+      const authorized = await isAuthorizedPhone(business.user_id, senderPhone);
+      if (authorized) {
+        const warning = "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.";
+        await evolution.sendText(business.evolution_instance_token, senderPhone, warning);
+        await recordMessage({ userId: business.user_id, phone: senderPhone, direction: "outbound", body: warning });
+      }
       return;
     }
 
-    if (!business.whatsapp_auto_register_enabled || !business.evolution_instance_token) return;
+    if (!business.whatsapp_auto_register_enabled) return;
+    if (!(await isAuthorizedPhone(business.user_id, senderPhone))) return;
 
-    const reply = await resolveReply(business.user_id, business.timezone, senderPhone, text);
-    if (reply) await evolution.sendText(business.evolution_instance_token, senderPhone, reply);
+    const reply = await resolveReply(business.user_id, business.timezone, senderPhone, message.body);
+    if (reply) {
+      await evolution.sendText(business.evolution_instance_token, senderPhone, reply);
+      await recordMessage({ userId: business.user_id, phone: senderPhone, direction: "outbound", body: reply });
+    }
   } catch (err) {
     console.error("webhook error:", err);
   }

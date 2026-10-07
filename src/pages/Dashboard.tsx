@@ -25,7 +25,8 @@ import {
   Bell,
   RefreshCw,
   Shield,
-  HelpCircle
+  HelpCircle,
+  MessageCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useAdmin";
@@ -38,6 +39,7 @@ import FinanceiroPage from "./Financeiro";
 import RelatoriosPage from "./Relatorios";
 import ConfiguracoesPage from "./Configuracoes";
 import LojaPage from "./Loja";
+import ConversasPage from "./Conversas";
 import PagamentosFuncionariosPage from "./PagamentosFuncionarios";
 import { useAppointments, useAppointmentsRealtime } from "@/hooks/useAppointments";
 import { useUpcomingExpenses } from "@/hooks/useFixedExpenses";
@@ -64,6 +66,7 @@ const Dashboard = () => {
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
     { icon: Calendar, label: "Agendamentos", href: "/dashboard/agendamentos" },
+    { icon: MessageCircle, label: "Conversas", href: "/dashboard/conversas" },
     { icon: Users, label: "Clientes", href: "/dashboard/clientes" },
     { icon: Car, label: "Veículos", href: "/dashboard/veiculos" },
     { icon: Wrench, label: "Serviços", href: "/dashboard/servicos" },
@@ -84,6 +87,9 @@ const Dashboard = () => {
   const renderContent = () => {
     if (currentPath === "/dashboard/agendamentos") {
       return <AgendamentosPage />;
+    }
+    if (currentPath === "/dashboard/conversas") {
+      return <ConversasPage />;
     }
     if (currentPath === "/dashboard/clientes") {
       return <ClientesPage />;
@@ -122,6 +128,7 @@ const Dashboard = () => {
 
   const getPageTitle = () => {
     if (currentPath === "/dashboard/agendamentos") return "Agendamentos";
+    if (currentPath === "/dashboard/conversas") return "Conversas";
     if (currentPath === "/dashboard/clientes") return "Clientes";
     if (currentPath === "/dashboard/veiculos") return "Veículos";
     if (currentPath === "/dashboard/servicos") return "Serviços";

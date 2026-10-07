@@ -9,18 +9,7 @@ export interface Business {
   evolution_instance_token: string | null;
 }
 
-export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
-  const { data: authorized, error } = await supabaseAdmin
-    .from("whatsapp_authorized_numbers")
-    .select("user_id")
-    .eq("phone", phone)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error || !authorized?.user_id) return null;
-
-  const userId = authorized.user_id;
-
+async function loadBusiness(userId: string): Promise<Business | null> {
   const [{ data: profile }, { data: subscription }, { data: settings }, { data: credentials }] = await Promise.all([
     supabaseAdmin.from("profiles").select("is_active").eq("id", userId).maybeSingle(),
     supabaseAdmin.from("subscriptions").select("status, expires_at, plan_id").eq("user_id", userId).maybeSingle(),
@@ -50,19 +39,39 @@ export async function findBusinessByAuthorizedPhone(phone: string): Promise<Busi
   };
 }
 
-export async function findBusinessByInstance(instanceName: string): Promise<Business | null> {
-  const { data } = await supabaseAdmin.from("business_settings").select("user_id").eq("evolution_instance_name", instanceName).maybeSingle();
-  if (!data?.user_id) return null;
-
-  const { data: number } = await supabaseAdmin
+export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
+  const { data: authorized, error } = await supabaseAdmin
     .from("whatsapp_authorized_numbers")
-    .select("phone")
-    .eq("user_id", data.user_id)
+    .select("user_id")
+    .eq("phone", phone)
     .eq("is_active", true)
-    .limit(1)
     .maybeSingle();
 
-  return number?.phone ? findBusinessByAuthorizedPhone(number.phone) : null;
+  if (error || !authorized?.user_id) return null;
+  return loadBusiness(authorized.user_id);
+}
+
+/** Identifies which business owns the Evolution Go instance a webhook fired on — the tenant boundary for *storing* a message, regardless of who sent it. */
+export async function findBusinessByInstanceName(instanceName: string): Promise<Business | null> {
+  const { data } = await supabaseAdmin
+    .from("business_settings")
+    .select("user_id")
+    .eq("evolution_instance_name", instanceName)
+    .maybeSingle();
+  if (!data?.user_id) return null;
+  return loadBusiness(data.user_id);
+}
+
+/** Whether a phone is allowed to issue commands (cadastrar, agendar, vale...) for this business — the permission boundary for *acting* on a message. */
+export async function isAuthorizedPhone(userId: string, phone: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("whatsapp_authorized_numbers")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("phone", phone)
+    .eq("is_active", true)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 export async function getClients(userId: string) {

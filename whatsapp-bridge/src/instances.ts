@@ -4,6 +4,7 @@ import { supabaseAdmin } from "./supabaseAdmin.js";
 import { requireSupabaseAuth, type AuthedRequest } from "./auth.js";
 import * as evolution from "./evolution.js";
 import { toLocalPhone, isValidBrazilianPhone } from "./phone.js";
+import { recordMessage } from "./conversations.js";
 
 export const instancesRouter = Router();
 instancesRouter.use(requireSupabaseAuth);
@@ -211,6 +212,33 @@ instancesRouter.post("/send-test", async (req: AuthedRequest, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("WhatsApp send-test error:", err);
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+instancesRouter.post("/send-message", async (req: AuthedRequest, res) => {
+  try {
+    const { phone, text } = req.body ?? {};
+    const localPhone = typeof phone === "string" ? toLocalPhone(phone) : "";
+    if (!isValidBrazilianPhone(localPhone) || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Informe telefone e mensagem." });
+    }
+
+    const { data } = await supabaseAdmin
+      .from("whatsapp_instance_credentials")
+      .select("instance_token")
+      .eq("user_id", req.userId)
+      .maybeSingle();
+
+    if (!data?.instance_token) {
+      return res.status(400).json({ error: "Conecte o WhatsApp primeiro." });
+    }
+
+    await evolution.sendText(data.instance_token, localPhone, text);
+    await recordMessage({ userId: req.userId!, phone: localPhone, direction: "outbound", body: text });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("WhatsApp send-message error:", err);
     res.status(502).json({ error: (err as Error).message });
   }
 });

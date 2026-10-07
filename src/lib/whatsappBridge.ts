@@ -53,3 +53,6 @@ export const sendTestWhatsAppMessage = (phone: string, message: string): Promise
 
 export const testEvolutionConnection = (): Promise<{ ok: boolean; error?: string }> =>
   authedFetch("/api/admin/evolution/test", { method: "POST" });
+
+export const sendChatMessage = (phone: string, text: string): Promise<{ ok: true }> =>
+  authedFetch("/api/whatsapp/send-message", { method: "POST", body: JSON.stringify({ phone, text }) });
