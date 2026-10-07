@@ -94,16 +94,23 @@ export async function getConnectionState(instanceToken: string): Promise<{ state
   // this still guesses wrong for a given deployment.
   console.log("Evolution Go /instance/status raw response:", JSON.stringify(data));
 
+  // whatsmeow's "Connected" only means the websocket is up — it's true even
+  // before a phone has ever been paired. "LoggedIn" is the actual signal
+  // that a WhatsApp session is authenticated and able to send/receive. When
+  // this field is present at all, trust it over everything else; only fall
+  // back to the broader (and less reliable) checks for builds that don't
+  // report it.
+  const loggedIn = data.loggedIn ?? data.LoggedIn;
   const connected =
-    data.loggedIn === true ||
-    data.LoggedIn === true ||
-    data.connected === true ||
-    data.Connected === true ||
-    data.isConnected === true ||
-    data.state === "open" ||
-    data.State === "open" ||
-    data.status === "open" ||
-    data.instance?.state === "open";
+    typeof loggedIn === "boolean"
+      ? loggedIn
+      : data.connected === true ||
+        data.Connected === true ||
+        data.isConnected === true ||
+        data.state === "open" ||
+        data.State === "open" ||
+        data.status === "open" ||
+        data.instance?.state === "open";
 
   const state = connected ? "open" : "close";
   return { state, instance: { state } };
