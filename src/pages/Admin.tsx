@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi } from "lucide-react";
+import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
 import { testEvolutionConnection } from "@/lib/whatsappBridge";
@@ -35,6 +35,8 @@ const Admin = () => {
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoTesting, setEvoTesting] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [authorizedNumbers, setAuthorizedNumbers] = useState<any[]>([]);
+  const [authorizedLoading, setAuthorizedLoading] = useState(false);
 
   const loadVideos = async () => {
     setVideoLoading(true);
@@ -89,7 +91,30 @@ const Admin = () => {
     }
   };
 
-  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); };
+  const loadAuthorizedNumbers = async () => {
+    setAuthorizedLoading(true);
+    const [{ data: numbers, error }, { data: profiles }] = await Promise.all([
+      supabase.from("whatsapp_authorized_numbers").select("*").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id, business_name, email"),
+    ]);
+    if (error) toast.error("Erro ao carregar números autorizados: " + error.message);
+    else {
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      setAuthorizedNumbers((numbers || []).map((n) => ({ ...n, business: profileMap.get(n.user_id) })));
+    }
+    setAuthorizedLoading(false);
+  };
+  const toggleAuthorizedNumber = async (id: string, isActive: boolean) => {
+    const { error } = await supabase.from("whatsapp_authorized_numbers").update({ is_active: isActive }).eq("id", id);
+    if (error) toast.error(error.message); else loadAuthorizedNumbers();
+  };
+  const deleteAuthorizedNumber = async (id: string) => {
+    if (!confirm("Remover este número autorizado?")) return;
+    const { error } = await supabase.from("whatsapp_authorized_numbers").delete().eq("id", id);
+    if (error) toast.error(error.message); else { toast.success("Número removido."); loadAuthorizedNumbers(); }
+  };
+
+  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); };
   const handleLogout = async () => { await signOut(); navigate("/"); };
 
   const planLabel: Record<string,string> = { free:"Gratuito", basic:"Básico", pro:"Pro", premium:"Premium" };
@@ -103,7 +128,7 @@ const Admin = () => {
     updateSubscription.mutate({ userId, expiresAt: addDays(base, days).toISOString(), status:"active" });
   };
 
-  useEffect(() => { loadVideos(); loadEvolutionSettings(); }, []);
+  useEffect(() => { loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label:"Visão geral", href:"/admin" },
@@ -111,6 +136,16 @@ const Admin = () => {
     { icon: Crown, label:"Planos", href:"/admin/planos" },
     { icon: PlayCircle, label:"Tutoriais", href:"/admin#tutoriais" },
     { icon: Smartphone, label:"Evolution Go", href:"/admin#evolution" },
+    { icon: Phone, label:"WhatsApp Central", href:"/admin#whatsapp-central" },
+  ];
+
+  const commandReference = [
+    { trigger: "ajuda", description: "Mostra a lista de comandos disponíveis." },
+    { trigger: "cadastrar cliente Nome, Telefone, Carro (opcional)", description: "Cadastra um novo cliente." },
+    { trigger: "cadastrar serviço Nome, Preço, Duração em minutos (opcional)", description: "Cadastra um novo serviço." },
+    { trigger: "Nome agendou Serviço pro Carro às HH:MM valor Valor", description: "Cria um agendamento e lança no financeiro." },
+    { trigger: "vale Nome do funcionário, Valor", description: "Registra um vale (adiantamento) pro funcionário." },
+    { trigger: "pagamento funcionário Nome do funcionário, Valor", description: "Registra o pagamento de um funcionário." },
   ];
 
   return <div className="min-h-screen bg-background flex">
@@ -204,6 +239,38 @@ const Admin = () => {
                   <Button variant="outline" onClick={testEvolution} disabled={evoTesting} className="gap-2"><Wifi className="w-4 h-4"/>{evoTesting?"Testando...":"Testar conexão"}</Button>
                 </div>
               </>}
+            </CardContent>
+          </Card>
+        </section>
+        <section id="whatsapp-central" className="space-y-6">
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Phone className="w-4 h-4"/>Números autorizados (todas as empresas)</CardTitle><p className="text-sm text-muted-foreground">Cada empresa autoriza seus próprios números em Configurações → WhatsApp. Aqui você acompanha e pode desativar/remover em caso de suporte.</p></CardHeader>
+            <CardContent>
+              {authorizedLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : authorizedNumbers.length === 0 ? <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Nenhum número autorizado em nenhuma empresa ainda.</div> : (
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Empresa</TableHead><TableHead>Telefone</TableHead><TableHead>Nome</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
+                  {authorizedNumbers.map((n) => <TableRow key={n.id}>
+                    <TableCell><p className="font-medium">{n.business?.business_name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{n.business?.email}</p></TableCell>
+                    <TableCell>{n.phone}</TableCell>
+                    <TableCell>{n.label || "—"}</TableCell>
+                    <TableCell>{n.is_active ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-success/10 text-success text-xs"><UserCheck className="w-3 h-3"/>Ativo</span> : <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-muted-foreground text-xs"><UserX className="w-3 h-3"/>Inativo</span>}</TableCell>
+                    <TableCell className="text-right"><div className="flex justify-end gap-1"><Button variant="ghost" size="sm" onClick={()=>toggleAuthorizedNumber(n.id, !n.is_active)}>{n.is_active?"Desativar":"Ativar"}</Button><Button variant="ghost" size="icon" onClick={()=>deleteAuthorizedNumber(n.id)}><Trash2 className="w-4 h-4 text-destructive"/></Button></div></TableCell>
+                  </TableRow>)}
+                </TableBody></Table></div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><MessageSquareText className="w-4 h-4"/>Comandos do agente de WhatsApp</CardTitle><p className="text-sm text-muted-foreground">Referência dos comandos que o sistema reconhece hoje (fixos, não editáveis). Cada empresa usa seu próprio número conectado pra receber esses comandos dos números autorizados.</p></CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {commandReference.map((c) => (
+                  <div key={c.trigger} className="rounded-lg border p-3">
+                    <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{c.trigger}</code>
+                    <p className="text-xs text-muted-foreground mt-1">{c.description}</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </section>

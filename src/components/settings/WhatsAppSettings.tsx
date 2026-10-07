@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Loader2, QrCode, Unplug, CheckCircle2, Send } from "lucide-react";
+import { MessageCircle, Loader2, QrCode, Unplug, CheckCircle2, Send, Users, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   isWhatsAppBridgeConfigured,
@@ -47,6 +47,13 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
   const [sendingTest, setSendingTest] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [authorizedNumbers, setAuthorizedNumbers] = useState<any[]>([]);
+  const [maxWhatsappCentral, setMaxWhatsappCentral] = useState<number | null>(null);
+  const [loadingAuthorized, setLoadingAuthorized] = useState(false);
+  const [newNumberPhone, setNewNumberPhone] = useState("");
+  const [newNumberLabel, setNewNumberLabel] = useState("");
+  const [addingNumber, setAddingNumber] = useState(false);
+
   useEffect(() => {
     if (settings) {
       setFormData({
@@ -79,6 +86,89 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [refreshStatus]);
+
+  const loadAuthorizedNumbers = useCallback(async () => {
+    if (!user) return;
+    setLoadingAuthorized(true);
+    try {
+      const [{ data: numbers, error: numbersError }, { data: sub }] = await Promise.all([
+        supabase
+          .from("whatsapp_authorized_numbers")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at"),
+        supabase.from("subscriptions").select("plan, plan_id").eq("user_id", user.id).maybeSingle(),
+      ]);
+      if (numbersError) throw numbersError;
+      setAuthorizedNumbers(numbers || []);
+
+      if (sub) {
+        const { data: plan } = sub.plan_id
+          ? await supabase.from("saas_plans").select("max_whatsapp_central").eq("id", sub.plan_id).maybeSingle()
+          : await supabase.from("saas_plans").select("max_whatsapp_central").eq("slug", sub.plan).maybeSingle();
+        setMaxWhatsappCentral(plan?.max_whatsapp_central ?? null);
+      }
+    } catch (error: any) {
+      toast.error("Erro ao carregar números autorizados: " + error.message);
+    } finally {
+      setLoadingAuthorized(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadAuthorizedNumbers();
+  }, [loadAuthorizedNumbers]);
+
+  const handleAddAuthorizedNumber = async () => {
+    if (!user) return;
+    const phone = newNumberPhone.replace(/\D/g, "");
+    if (!phone) {
+      toast.error("Informe o telefone (DDD + número).");
+      return;
+    }
+    setAddingNumber(true);
+    try {
+      const { error } = await supabase.from("whatsapp_authorized_numbers").insert({
+        user_id: user.id,
+        phone,
+        label: newNumberLabel.trim() || null,
+      });
+      if (error) {
+        if (error.message.includes("Limite de WhatsApps")) {
+          toast.error("Limite de números do seu plano atingido. Fale com o suporte pra aumentar.");
+        } else if (error.code === "23505") {
+          toast.error("Esse número já está autorizado.");
+        } else {
+          throw error;
+        }
+        return;
+      }
+      toast.success("Número autorizado!");
+      setNewNumberPhone("");
+      setNewNumberLabel("");
+      loadAuthorizedNumbers();
+    } catch (error: any) {
+      toast.error("Erro ao autorizar número: " + error.message);
+    } finally {
+      setAddingNumber(false);
+    }
+  };
+
+  const handleToggleAuthorizedNumber = async (id: string, isActive: boolean) => {
+    const { error } = await supabase.from("whatsapp_authorized_numbers").update({ is_active: isActive }).eq("id", id);
+    if (error) toast.error("Erro ao atualizar: " + error.message);
+    else loadAuthorizedNumbers();
+  };
+
+  const handleDeleteAuthorizedNumber = async (id: string) => {
+    if (!confirm("Remover este número da lista de autorizados?")) return;
+    const { error } = await supabase.from("whatsapp_authorized_numbers").delete().eq("id", id);
+    if (error) toast.error("Erro ao remover: " + error.message);
+    else {
+      toast.success("Número removido.");
+      loadAuthorizedNumbers();
+    }
+  };
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -254,6 +344,65 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
             {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar teste
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" /> Números autorizados
+          </CardTitle>
+          <CardDescription>
+            Só os números da lista abaixo conseguem mandar comandos pelo WhatsApp (cadastrar cliente,
+            agendar, vale, etc.). Qualquer outro número que escrever é ignorado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {maxWhatsappCentral !== null && (
+            <p className="text-xs text-muted-foreground">
+              {authorizedNumbers.length} de {maxWhatsappCentral} número(s) permitido(s) pelo seu plano.
+            </p>
+          )}
+
+          {loadingAuthorized ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : authorizedNumbers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum número autorizado ainda. Adicione o seu abaixo.</p>
+          ) : (
+            <div className="space-y-2">
+              {authorizedNumbers.map((n) => (
+                <div key={n.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{n.label || "Sem nome"}</p>
+                    <p className="text-xs text-muted-foreground">{n.phone}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch checked={n.is_active} onCheckedChange={(checked) => handleToggleAuthorizedNumber(n.id, checked)} />
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteAuthorizedNumber(n.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="grid gap-3 sm:grid-cols-[200px_1fr_auto] items-end">
+            <div className="space-y-1">
+              <Label>Telefone</Label>
+              <Input placeholder="DDD + número" value={newNumberPhone} onChange={(e) => setNewNumberPhone(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Nome (opcional)</Label>
+              <Input placeholder="Ex: Eu, Sócio, Gerente" value={newNumberLabel} onChange={(e) => setNewNumberLabel(e.target.value)} />
+            </div>
+            <Button onClick={handleAddAuthorizedNumber} disabled={addingNumber} className="gap-2">
+              {addingNumber ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Autorizar
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
