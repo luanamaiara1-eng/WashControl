@@ -30,8 +30,13 @@ export const webhookRouter = Router();
 // Media (image/audio/document) isn't downloaded/stored yet — that's a later
 // phase — but we still record that *something* arrived so the chat doesn't
 // silently drop it, with the caption/filename as a stand-in body.
-function extractMessage(data: any): { type: MessageType; body: string | null } | null {
-  const message = data?.message ?? {};
+//
+// Evolution Go (whatsmeow) wraps each event as { Info: {...}, event, ... },
+// PascalCase, not the Baileys-style { key, message } shape — confirmed from
+// production logs. `Info.Message` still holds the same WhatsApp protobuf
+// field names (conversation, extendedTextMessage, ...) either way.
+function extractMessage(info: any): { type: MessageType; body: string | null } | null {
+  const message = info?.Message ?? {};
   if (message.conversation) return { type: "text", body: message.conversation };
   if (message.extendedTextMessage?.text) return { type: "text", body: message.extendedTextMessage.text };
   if (message.ephemeralMessage?.message?.conversation) return { type: "text", body: message.ephemeralMessage.message.conversation };
@@ -93,14 +98,21 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
 
   try {
     const { instanceName } = req.params;
-    const data = req.body?.data ?? req.body;
+    const payload = req.body?.data ?? req.body;
 
     console.log(`Webhook event for instance ${instanceName}:`, JSON.stringify(req.body).slice(0, 2000));
 
-    const fromMe: boolean = data?.key?.fromMe ?? false;
-    const remoteJid: string | undefined = data?.key?.remoteJid;
-    const externalId: string | undefined = data?.key?.id;
-    const message = extractMessage(data);
+    // Only "Message" events carry a chat message — CONNECTION/QRCODE events
+    // (also subscribed, for the connect flow) use a different shape and
+    // aren't relevant here.
+    if (payload?.event && payload.event !== "Message") return;
+
+    const info = payload?.Info ?? {};
+    const fromMe: boolean = info?.IsFromMe ?? false;
+    const remoteJid: string | undefined = info?.Chat || info?.Sender;
+    const externalId: string | undefined = info?.ID;
+    const pushName: string | undefined = info?.PushName;
+    const message = extractMessage(info);
 
     // Outbound messages are recorded where we send them (the command reply
     // below, or POST /api/whatsapp/send-message), not from the webhook —
@@ -123,6 +135,7 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
       type: message.type,
       body: message.body,
       externalId,
+      senderName: pushName,
     });
 
     if (!business.evolution_instance_token || message.type !== "text" || !message.body) return;

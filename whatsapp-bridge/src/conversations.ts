@@ -4,7 +4,7 @@ import { getClientByPhone } from "./business.js";
 export type MessageDirection = "inbound" | "outbound";
 export type MessageType = "text" | "image" | "audio" | "document" | "other";
 
-async function getOrCreateConversation(userId: string, phone: string) {
+async function getOrCreateConversation(userId: string, phone: string, senderName?: string | null) {
   const { data: existing } = await supabaseAdmin
     .from("whatsapp_conversations")
     .select("id, contact_name, client_id")
@@ -17,7 +17,7 @@ async function getOrCreateConversation(userId: string, phone: string) {
   const client = await getClientByPhone(userId, phone);
   const { data: created, error } = await supabaseAdmin
     .from("whatsapp_conversations")
-    .insert({ user_id: userId, phone, contact_name: client?.name ?? null, client_id: client?.id ?? null })
+    .insert({ user_id: userId, phone, contact_name: client?.name ?? senderName ?? null, client_id: client?.id ?? null })
     .select("id, contact_name, client_id")
     .single();
 
@@ -40,9 +40,10 @@ export async function recordMessage(params: {
   body?: string | null;
   mediaUrl?: string | null;
   externalId?: string | null;
+  senderName?: string | null;
 }) {
   const type = params.type ?? "text";
-  const conversation = await getOrCreateConversation(params.userId, params.phone);
+  const conversation = await getOrCreateConversation(params.userId, params.phone, params.senderName);
 
   const { error: insertError } = await supabaseAdmin.from("whatsapp_chat_messages").insert({
     user_id: params.userId,
