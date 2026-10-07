@@ -784,18 +784,24 @@ export type Database = {
           id: boolean
           base_url: string
           api_key: string
+          central_instance_name: string | null
+          central_instance_token: string | null
           updated_at: string
         }
         Insert: {
           id?: boolean
           base_url: string
           api_key: string
+          central_instance_name?: string | null
+          central_instance_token?: string | null
           updated_at?: string
         }
         Update: {
           id?: boolean
           base_url?: string
           api_key?: string
+          central_instance_name?: string | null
+          central_instance_token?: string | null
           updated_at?: string
         }
         Relationships: []

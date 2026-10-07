@@ -56,3 +56,22 @@ export const testEvolutionConnection = (): Promise<{ ok: boolean; error?: string
 
 export const sendChatMessage = (phone: string, text: string): Promise<{ ok: true }> =>
   authedFetch("/api/whatsapp/send-message", { method: "POST", body: JSON.stringify({ phone, text }) });
+
+export interface CentralStatus {
+  hasInstance: boolean;
+  connected: boolean;
+}
+
+export interface CentralConnectResult {
+  qrCode: string | null;
+  pairingCode: string | null;
+  alreadyConnected?: boolean;
+}
+
+export const getCentralStatus = (): Promise<CentralStatus> => authedFetch("/api/admin/central/status");
+
+export const connectCentral = (): Promise<CentralConnectResult> =>
+  authedFetch("/api/admin/central/connect", { method: "POST" });
+
+export const disconnectCentral = (): Promise<{ ok: true }> =>
+  authedFetch("/api/admin/central/disconnect", { method: "POST" });

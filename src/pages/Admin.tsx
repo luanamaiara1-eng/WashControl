@@ -8,11 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone } from "lucide-react";
+import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone, QrCode, Unplug, CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
-import { testEvolutionConnection } from "@/lib/whatsappBridge";
+import { testEvolutionConnection, getCentralStatus, connectCentral, disconnectCentral, type CentralStatus } from "@/lib/whatsappBridge";
 import { format, addDays, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -37,6 +39,11 @@ const Admin = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<any[]>([]);
   const [authorizedLoading, setAuthorizedLoading] = useState(false);
+  const [centralStatus, setCentralStatus] = useState<CentralStatus | null>(null);
+  const [centralLoadingStatus, setCentralLoadingStatus] = useState(false);
+  const [centralConnecting, setCentralConnecting] = useState(false);
+  const [centralDisconnecting, setCentralDisconnecting] = useState(false);
+  const [centralQrCode, setCentralQrCode] = useState<string | null>(null);
 
   const loadVideos = async () => {
     setVideoLoading(true);
@@ -114,7 +121,55 @@ const Admin = () => {
     if (error) toast.error(error.message); else { toast.success("Número removido."); loadAuthorizedNumbers(); }
   };
 
-  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); };
+  const refreshCentralStatus = async () => {
+    setCentralLoadingStatus(true);
+    try {
+      setCentralStatus(await getCentralStatus());
+    } catch (e: any) {
+      toast.error("Erro ao consultar status do número central: " + e.message);
+    } finally {
+      setCentralLoadingStatus(false);
+    }
+  };
+  const handleConnectCentral = async () => {
+    setCentralConnecting(true);
+    try {
+      const result = await connectCentral();
+      setCentralQrCode(result.qrCode);
+      if (result.alreadyConnected) toast.success("O número central já estava conectado!");
+
+      const poll = setInterval(async () => {
+        const next = await getCentralStatus().catch(() => null);
+        if (next) {
+          setCentralStatus(next);
+          if (next.connected) {
+            clearInterval(poll);
+            setCentralQrCode(null);
+            toast.success("Número central conectado!");
+          }
+        }
+      }, 4000);
+    } catch (e: any) {
+      toast.error("Erro ao conectar: " + e.message);
+    } finally {
+      setCentralConnecting(false);
+    }
+  };
+  const handleDisconnectCentral = async () => {
+    setCentralDisconnecting(true);
+    try {
+      await disconnectCentral();
+      setCentralQrCode(null);
+      toast.success("Número central desconectado. Clique em \"Conectar\" pra parear de novo.");
+      refreshCentralStatus();
+    } catch (e: any) {
+      toast.error("Erro ao desconectar: " + e.message);
+    } finally {
+      setCentralDisconnecting(false);
+    }
+  };
+
+  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); };
   const handleLogout = async () => { await signOut(); navigate("/"); };
 
   const planLabel: Record<string,string> = { free:"Gratuito", basic:"Básico", pro:"Pro", premium:"Premium" };
@@ -128,7 +183,7 @@ const Admin = () => {
     updateSubscription.mutate({ userId, expiresAt: addDays(base, days).toISOString(), status:"active" });
   };
 
-  useEffect(() => { loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); }, []);
+  useEffect(() => { loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label:"Visão geral", href:"/admin" },
@@ -244,6 +299,40 @@ const Admin = () => {
         </section>
         <section id="whatsapp-central" className="space-y-6">
           <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Phone className="w-4 h-4"/>Número Central de Comandos</CardTitle>
+              <p className="text-sm text-muted-foreground">O único número de WhatsApp de todo o WashControl que recebe comandos ("cadastrar cliente...", "João agendou...", "vale..."). O sistema identifica a empresa pelo telefone de quem manda (lista de números autorizados abaixo) — diferente do WhatsApp que cada empresa conecta em Configurações, que serve só pra falar com os clientes dela.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                {centralLoadingStatus ? (
+                  <Badge variant="outline" className="gap-1"><Loader2 className="w-3 h-3 animate-spin"/>Verificando...</Badge>
+                ) : centralStatus?.connected ? (
+                  <Badge className="gap-1 bg-green-600 hover:bg-green-600"><CheckCircle2 className="w-3 h-3"/>Conectado</Badge>
+                ) : (
+                  <Badge variant="secondary">Desconectado</Badge>
+                )}
+                <div className="flex gap-2">
+                  <Button onClick={handleConnectCentral} disabled={centralConnecting} className="gap-2">
+                    {centralConnecting ? <Loader2 className="w-4 h-4 animate-spin"/> : <QrCode className="w-4 h-4"/>}
+                    Conectar número central
+                  </Button>
+                  <Button variant="outline" onClick={handleDisconnectCentral} disabled={centralDisconnecting} className="gap-2">
+                    {centralDisconnecting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Unplug className="w-4 h-4"/>}
+                    Desconectar
+                  </Button>
+                </div>
+              </div>
+              {!centralStatus?.connected && (
+                <p className="text-xs text-muted-foreground">
+                  Escaneie o QR Code com o WhatsApp que vai ser o número oficial do WashControl pra receber comandos.
+                  Se "Conectar" não mostrar um QR novo, clique em "Desconectar" primeiro e tente de novo.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Phone className="w-4 h-4"/>Números autorizados (todas as empresas)</CardTitle><p className="text-sm text-muted-foreground">Cada empresa autoriza seus próprios números em Configurações → WhatsApp. Aqui você acompanha e pode desativar/remover em caso de suporte.</p></CardHeader>
             <CardContent>
               {authorizedLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : authorizedNumbers.length === 0 ? <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Nenhum número autorizado em nenhuma empresa ainda.</div> : (
@@ -300,6 +389,15 @@ const Admin = () => {
       </div>
     </main>
     {sidebarOpen&&<div className="fixed inset-0 bg-foreground/20 z-40 lg:hidden" onClick={()=>setSidebarOpen(false)}/>}
+    <Dialog open={!!centralQrCode} onOpenChange={(open)=>!open && setCentralQrCode(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Escaneie com o WhatsApp do número central</DialogTitle>
+          <DialogDescription>No celular: WhatsApp → Configurações → Aparelhos conectados → Conectar um aparelho.</DialogDescription>
+        </DialogHeader>
+        {centralQrCode && <div className="flex justify-center p-4"><img src={centralQrCode} alt="QR Code do número central" className="w-64 h-64"/></div>}
+      </DialogContent>
+    </Dialog>
   </div>;
 };
 export default Admin;

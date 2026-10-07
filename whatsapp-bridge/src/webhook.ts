@@ -1,8 +1,9 @@
 import { Router } from "express";
 import * as evolution from "./evolution.js";
-import { findBusinessByInstanceName, isAuthorizedPhone } from "./business.js";
+import { findBusinessByInstanceName, findBusinessByAuthorizedPhone, isAuthorizedPhone } from "./business.js";
 import { fromRemoteJid } from "./phone.js";
 import { recordMessage, type MessageType } from "./conversations.js";
+import { CENTRAL_INSTANCE_NAME, getCentralInstanceToken } from "./central.js";
 import {
   HELP_MESSAGE,
   isHelpTrigger,
@@ -92,6 +93,34 @@ async function resolveReply(
   return null;
 }
 
+/** The one platform-wide command number: identifies the business purely by
+ * who's texting (an authorized owner/manager), not by which number received
+ * it. Replies go out from the central number, and nothing is stored as a
+ * client conversation — this channel has nothing to do with a business's
+ * clients. */
+async function handleCentralMessage(senderPhone: string, message: { type: MessageType; body: string | null }) {
+  if (message.type !== "text" || !message.body) return;
+
+  const business = await findBusinessByAuthorizedPhone(senderPhone);
+  if (!business) return;
+
+  const centralToken = await getCentralInstanceToken();
+  if (!centralToken) return;
+
+  if (!business.subscription_active) {
+    const warning = "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.";
+    await evolution.sendText(centralToken, senderPhone, warning);
+    return;
+  }
+
+  if (!business.whatsapp_auto_register_enabled) return;
+
+  const reply = await resolveReply(business.user_id, business.timezone, senderPhone, message.body);
+  if (reply) {
+    await evolution.sendText(centralToken, senderPhone, reply);
+  }
+}
+
 webhookRouter.post("/evolution/:instanceName", async (req, res) => {
   // Always ack fast so the gateway doesn't retry; errors are logged, not surfaced.
   res.status(200).json({ ok: true });
@@ -121,10 +150,15 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     // linked phone itself without risking duplicate chat rows.
     if (fromMe || !remoteJid || !message) return;
 
+    const senderPhone = fromRemoteJid(remoteJid);
+
+    if (instanceName === CENTRAL_INSTANCE_NAME) {
+      await handleCentralMessage(senderPhone, message);
+      return;
+    }
+
     const business = await findBusinessByInstanceName(instanceName);
     if (!business) return;
-
-    const senderPhone = fromRemoteJid(remoteJid);
 
     // Every inbound message is recorded so it shows up in the app's chat,
     // whether or not the sender is allowed to issue commands.
