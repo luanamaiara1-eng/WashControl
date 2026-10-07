@@ -88,7 +88,24 @@ export async function getConnectQrCode(instanceToken: string): Promise<{ base64?
 export async function getConnectionState(instanceToken: string): Promise<{ state?: string; instance?: { state?: string } }> {
   const response = await evolutionInstanceFetch(instanceToken, "/instance/status");
   const data = response?.data ?? response ?? {};
-  const state = data.loggedIn ? "open" : data.connected ? "connecting" : "close";
+
+  // Evolution Go builds have varied in exactly which field/casing reports
+  // the session as authenticated. Logged so we can see the real shape if
+  // this still guesses wrong for a given deployment.
+  console.log("Evolution Go /instance/status raw response:", JSON.stringify(data));
+
+  const connected =
+    data.loggedIn === true ||
+    data.LoggedIn === true ||
+    data.connected === true ||
+    data.Connected === true ||
+    data.isConnected === true ||
+    data.state === "open" ||
+    data.State === "open" ||
+    data.status === "open" ||
+    data.instance?.state === "open";
+
+  const state = connected ? "open" : "close";
   return { state, instance: { state } };
 }
 
