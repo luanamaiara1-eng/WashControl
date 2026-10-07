@@ -46,6 +46,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
   const [testMessage, setTestMessage] = useState("Teste do WashControl 👋");
   const [sendingTest, setSendingTest] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [authorizedNumbers, setAuthorizedNumbers] = useState<any[]>([]);
   const [maxWhatsappCentral, setMaxWhatsappCentral] = useState<number | null>(null);
@@ -84,6 +85,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
     refreshStatus();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
     };
   }, [refreshStatus]);
 
@@ -188,11 +190,24 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
           setStatus(next);
           if (next.connected) {
             clearInterval(pollRef.current!);
+            if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
             setQrCode(null);
             toast.success("WhatsApp conectado!");
           }
         }
       }, 4000);
+
+      // The QR Code expires after a short while (~20-60s) — keep fetching a
+      // fresh one while the dialog is open so it doesn't go stale before the
+      // phone's camera gets a chance to scan it (especially on iOS, where
+      // opening WhatsApp's scanner and granting camera access takes longer).
+      if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
+      if (!result.alreadyConnected) {
+        qrRefreshRef.current = setInterval(async () => {
+          const fresh = await connectWhatsApp().catch(() => null);
+          if (fresh?.qrCode) setQrCode(fresh.qrCode);
+        }, 25000);
+      }
     } catch (error: any) {
       toast.error("Erro ao conectar: " + error.message);
     } finally {
@@ -205,6 +220,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
     try {
       await disconnectWhatsApp();
       if (pollRef.current) clearInterval(pollRef.current);
+      if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
       setQrCode(null);
       toast.success("WhatsApp desconectado. Pode clicar em \"Conectar WhatsApp\" pra parear de novo.");
       refreshStatus();
@@ -531,7 +547,7 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
         {saving ? "Salvando..." : "Salvar configurações de WhatsApp"}
       </Button>
 
-      <Dialog open={!!qrCode} onOpenChange={(open) => !open && setQrCode(null)}>
+      <Dialog open={!!qrCode} onOpenChange={(open) => { if (!open) { setQrCode(null); if (qrRefreshRef.current) clearInterval(qrRefreshRef.current); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Escaneie com o WhatsApp</DialogTitle>

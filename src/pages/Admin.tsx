@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
@@ -44,6 +44,8 @@ const Admin = () => {
   const [centralConnecting, setCentralConnecting] = useState(false);
   const [centralDisconnecting, setCentralDisconnecting] = useState(false);
   const [centralQrCode, setCentralQrCode] = useState<string | null>(null);
+  const centralPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const centralQrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadVideos = async () => {
     setVideoLoading(true);
@@ -138,17 +140,31 @@ const Admin = () => {
       setCentralQrCode(result.qrCode);
       if (result.alreadyConnected) toast.success("O número central já estava conectado!");
 
-      const poll = setInterval(async () => {
+      if (centralPollRef.current) clearInterval(centralPollRef.current);
+      centralPollRef.current = setInterval(async () => {
         const next = await getCentralStatus().catch(() => null);
         if (next) {
           setCentralStatus(next);
           if (next.connected) {
-            clearInterval(poll);
+            clearInterval(centralPollRef.current!);
+            if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
             setCentralQrCode(null);
             toast.success("Número central conectado!");
           }
         }
       }, 4000);
+
+      // The QR Code expires after a short while — keep fetching a fresh one
+      // while the dialog is open so it doesn't go stale before it gets
+      // scanned (especially on iOS, where opening the scanner and granting
+      // camera access takes longer).
+      if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
+      if (!result.alreadyConnected) {
+        centralQrRefreshRef.current = setInterval(async () => {
+          const fresh = await connectCentral().catch(() => null);
+          if (fresh?.qrCode) setCentralQrCode(fresh.qrCode);
+        }, 25000);
+      }
     } catch (e: any) {
       toast.error("Erro ao conectar: " + e.message);
     } finally {
@@ -159,6 +175,8 @@ const Admin = () => {
     setCentralDisconnecting(true);
     try {
       await disconnectCentral();
+      if (centralPollRef.current) clearInterval(centralPollRef.current);
+      if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
       setCentralQrCode(null);
       toast.success("Número central desconectado. Clique em \"Conectar\" pra parear de novo.");
       refreshCentralStatus();
@@ -183,7 +201,13 @@ const Admin = () => {
     updateSubscription.mutate({ userId, expiresAt: addDays(base, days).toISOString(), status:"active" });
   };
 
-  useEffect(() => { loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); }, []);
+  useEffect(() => {
+    loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus();
+    return () => {
+      if (centralPollRef.current) clearInterval(centralPollRef.current);
+      if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
+    };
+  }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label:"Visão geral", href:"/admin" },
@@ -389,7 +413,7 @@ const Admin = () => {
       </div>
     </main>
     {sidebarOpen&&<div className="fixed inset-0 bg-foreground/20 z-40 lg:hidden" onClick={()=>setSidebarOpen(false)}/>}
-    <Dialog open={!!centralQrCode} onOpenChange={(open)=>!open && setCentralQrCode(null)}>
+    <Dialog open={!!centralQrCode} onOpenChange={(open)=>{ if(!open){ setCentralQrCode(null); if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current); } }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Escaneie com o WhatsApp do número central</DialogTitle>
