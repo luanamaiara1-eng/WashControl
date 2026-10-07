@@ -2,12 +2,25 @@ import { config } from "./config.js";
 import { toWhatsAppNumber } from "./phone.js";
 import { getEvolutionSettings } from "./evolutionSettings.js";
 
+const EVOLUTION_TIMEOUT_MS = 15_000;
+
 async function evolutionFetch(path: string, apiKey: string, init: RequestInit = {}): Promise<any> {
   const { baseUrl } = await getEvolutionSettings();
-  const res = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", apikey: apiKey, ...init.headers },
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", apikey: apiKey, ...init.headers },
+      signal: AbortSignal.timeout(EVOLUTION_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`Evolution Go ${init.method ?? "GET"} ${path} não respondeu em ${EVOLUTION_TIMEOUT_MS / 1000}s.`);
+    }
+    throw err;
+  }
+
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`Evolution Go ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`);

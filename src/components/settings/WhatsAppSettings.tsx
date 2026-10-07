@@ -10,13 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Loader2, QrCode, Unplug, CheckCircle2 } from "lucide-react";
+import { MessageCircle, Loader2, QrCode, Unplug, CheckCircle2, Send } from "lucide-react";
 import { toast } from "sonner";
 import {
   isWhatsAppBridgeConfigured,
   getWhatsAppStatus,
   connectWhatsApp,
   disconnectWhatsApp,
+  sendTestWhatsAppMessage,
   type WhatsAppStatus,
 } from "@/lib/whatsappBridge";
 
@@ -40,6 +41,10 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testMessage, setTestMessage] = useState("Teste do WashControl 👋");
+  const [sendingTest, setSendingTest] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -106,12 +111,33 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
   };
 
   const handleDisconnect = async () => {
+    setDisconnecting(true);
     try {
       await disconnectWhatsApp();
-      toast.success("WhatsApp desconectado.");
+      if (pollRef.current) clearInterval(pollRef.current);
+      setQrCode(null);
+      toast.success("WhatsApp desconectado. Pode clicar em \"Conectar WhatsApp\" pra parear de novo.");
       refreshStatus();
     } catch (error: any) {
       toast.error("Erro ao desconectar: " + error.message);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleSendTest = async () => {
+    if (!testPhone.trim()) {
+      toast.error("Informe um telefone (DDD + número).");
+      return;
+    }
+    setSendingTest(true);
+    try {
+      await sendTestWhatsAppMessage(testPhone, testMessage);
+      toast.success("Mensagem de teste enviada!");
+    } catch (error: any) {
+      toast.error("Erro ao enviar teste: " + error.message);
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -184,17 +210,50 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
               )}
             </div>
 
-            {status?.connected ? (
-              <Button variant="outline" onClick={handleDisconnect} className="gap-2">
-                <Unplug className="w-4 h-4" /> Desconectar
-              </Button>
-            ) : (
+            <div className="flex gap-2">
               <Button onClick={handleConnect} disabled={connecting} className="gap-2">
                 {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
                 Conectar WhatsApp
               </Button>
-            )}
+              <Button variant="outline" onClick={handleDisconnect} disabled={disconnecting} className="gap-2">
+                {disconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}
+                Desconectar
+              </Button>
+            </div>
           </div>
+          {!status?.connected && (
+            <p className="text-xs text-muted-foreground">
+              Se "Conectar" não mostrar um QR Code novo, clique em "Desconectar" primeiro (força
+              encerrar qualquer sessão travada) e tente "Conectar" de novo.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Send className="w-5 h-5" /> Testar envio
+          </CardTitle>
+          <CardDescription>Manda uma mensagem de teste pra um número, pra confirmar que o envio está funcionando.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+            <Input
+              placeholder="DDD + número (ex: 11999998888)"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+            />
+            <Input
+              placeholder="Mensagem"
+              value={testMessage}
+              onChange={(e) => setTestMessage(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={handleSendTest} disabled={sendingTest} className="gap-2">
+            {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar teste
+          </Button>
         </CardContent>
       </Card>
 

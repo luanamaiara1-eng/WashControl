@@ -48,5 +48,8 @@ export const connectWhatsApp = (): Promise<WhatsAppConnectResult> =>
 export const disconnectWhatsApp = (): Promise<{ ok: true }> =>
   authedFetch("/api/whatsapp/disconnect", { method: "POST" });
 
+export const sendTestWhatsAppMessage = (phone: string, message: string): Promise<{ ok: true }> =>
+  authedFetch("/api/whatsapp/send-test", { method: "POST", body: JSON.stringify({ phone, message }) });
+
 export const testEvolutionConnection = (): Promise<{ ok: boolean; error?: string }> =>
   authedFetch("/api/admin/evolution/test", { method: "POST" });

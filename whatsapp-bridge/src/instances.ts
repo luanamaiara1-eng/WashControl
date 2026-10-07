@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "./supabaseAdmin.js";
 import { requireSupabaseAuth, type AuthedRequest } from "./auth.js";
 import * as evolution from "./evolution.js";
+import { toLocalPhone, isValidBrazilianPhone } from "./phone.js";
 
 export const instancesRouter = Router();
 instancesRouter.use(requireSupabaseAuth);
@@ -174,11 +175,42 @@ instancesRouter.post("/disconnect", async (req: AuthedRequest, res) => {
       .maybeSingle();
 
     if (data?.instance_token) {
-      await evolution.logoutInstance(data.instance_token);
+      // Best-effort: a stuck/already-logged-out session can make Evolution Go
+      // error here too, but the point of this button is to force a reset, so
+      // we don't want that to block the user from then clicking "Conectar".
+      await evolution.logoutInstance(data.instance_token).catch((error) => {
+        console.error("Evolution Go logout failed (continuing anyway):", error);
+      });
     }
     res.json({ ok: true });
   } catch (err) {
     console.error("WhatsApp disconnect error:", err);
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+instancesRouter.post("/send-test", async (req: AuthedRequest, res) => {
+  try {
+    const { phone, message } = req.body ?? {};
+    const localPhone = typeof phone === "string" ? toLocalPhone(phone) : "";
+    if (!isValidBrazilianPhone(localPhone)) {
+      return res.status(400).json({ error: "Telefone inválido. Use DDD + número, só números." });
+    }
+
+    const { data } = await supabaseAdmin
+      .from("whatsapp_instance_credentials")
+      .select("instance_token")
+      .eq("user_id", req.userId)
+      .maybeSingle();
+
+    if (!data?.instance_token) {
+      return res.status(400).json({ error: "Conecte o WhatsApp primeiro." });
+    }
+
+    await evolution.sendText(data.instance_token, localPhone, message || "Teste do WashControl 👋");
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("WhatsApp send-test error:", err);
     res.status(502).json({ error: (err as Error).message });
   }
 });
