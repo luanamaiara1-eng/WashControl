@@ -5,10 +5,12 @@ import { sendChatMessage, isWhatsAppBridgeConfigured } from "@/lib/whatsappBridg
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, Send, Loader2, Image as ImageIcon, Mic, FileText, User } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MessageCircle, Send, Loader2, Image as ImageIcon, Mic, FileText, User, Plus, Search } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -21,6 +23,12 @@ interface Conversation {
   last_message_at: string;
   last_message_preview: string | null;
   unread_count: number;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  phone: string | null;
 }
 
 interface ChatMessage {
@@ -68,6 +76,11 @@ export default function ConversasPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  const [startingChat, setStartingChat] = useState(false);
 
   const selected = useMemo(() => conversations.find((c) => c.id === selectedId) ?? null, [conversations, selectedId]);
 
@@ -155,6 +168,52 @@ export default function ConversasPage() {
     }
   };
 
+  const openNewChat = async () => {
+    setNewChatOpen(true);
+    if (!user || clients.length) return;
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name, phone")
+      .eq("user_id", user.id)
+      .not("phone", "is", null)
+      .order("name");
+    setClients(data ?? []);
+  };
+
+  const filteredClients = useMemo(() => {
+    const q = clientSearch.toLowerCase();
+    return clients.filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? "").includes(q));
+  }, [clients, clientSearch]);
+
+  const handleStartChat = async (client: Client) => {
+    if (!user || !client.phone) return;
+
+    const existing = conversations.find((c) => c.phone === client.phone);
+    if (existing) {
+      setSelectedId(existing.id);
+      setNewChatOpen(false);
+      return;
+    }
+
+    setStartingChat(true);
+    try {
+      const { data, error } = await supabase
+        .from("whatsapp_conversations")
+        .insert({ user_id: user.id, phone: client.phone, contact_name: client.name, client_id: client.id })
+        .select("id, phone, contact_name, client_id, last_message_at, last_message_preview, unread_count")
+        .single();
+      if (error) throw error;
+
+      setConversations((prev) => [data as Conversation, ...prev]);
+      setSelectedId(data.id);
+      setNewChatOpen(false);
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conversa: " + error.message);
+    } finally {
+      setStartingChat(false);
+    }
+  };
+
   if (!isWhatsAppBridgeConfigured()) {
     return (
       <Card>
@@ -168,10 +227,13 @@ export default function ConversasPage() {
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-4">
       <div className={`w-full sm:w-80 shrink-0 border rounded-xl overflow-hidden flex flex-col ${selectedId ? "hidden sm:flex" : "flex"}`}>
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-bold flex items-center gap-2">
             <MessageCircle className="h-5 w-5" /> Conversas
           </h2>
+          <Button size="icon" variant="outline" onClick={openNewChat} title="Nova conversa">
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
         <ScrollArea className="flex-1">
           {loadingConversations ? (
@@ -285,6 +347,48 @@ export default function ConversasPage() {
           </>
         )}
       </div>
+
+      <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova conversa</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              placeholder="Buscar cliente por nome ou telefone..."
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <ScrollArea className="h-80">
+            {filteredClients.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground text-center">
+                {clients.length === 0 ? "Nenhum cliente com telefone cadastrado." : "Nenhum cliente encontrado."}
+              </p>
+            ) : (
+              filteredClients.map((client) => (
+                <button
+                  key={client.id}
+                  onClick={() => handleStartChat(client)}
+                  disabled={startingChat}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Avatar>
+                    <AvatarFallback>{initialsFor(client.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{client.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatPhone(client.phone ?? "")}</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

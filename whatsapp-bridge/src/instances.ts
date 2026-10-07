@@ -127,7 +127,16 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
 
     if (!exists) {
       await evolution.createInstance(instanceName, instanceToken);
-    } else {
+    }
+
+    // Always (re)register the webhook — even an already-connected instance
+    // needs this, since without it Evolution Go has nowhere to deliver
+    // inbound messages/events. A previous version returned early for
+    // already-connected instances *before* this call, which silently left
+    // the webhook unset for anyone who connected that way.
+    await evolution.connectInstance(instanceName, instanceToken);
+
+    if (exists) {
       // The instance may already have an active WhatsApp session from a
       // previous pairing (e.g. a retry after the app itself was briefly
       // unreachable) — no QR code needed in that case.
@@ -136,8 +145,6 @@ instancesRouter.post("/connect", async (req: AuthedRequest, res) => {
         return res.json({ instanceName, qrCode: null, pairingCode: null, alreadyConnected: true });
       }
     }
-
-    await evolution.connectInstance(instanceName, instanceToken);
 
     let qr: { base64?: string; pairingCode?: string } = {};
     let alreadyConnected = false;

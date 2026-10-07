@@ -95,6 +95,8 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     const { instanceName } = req.params;
     const data = req.body?.data ?? req.body;
 
+    console.log(`Webhook event for instance ${instanceName}:`, JSON.stringify(req.body).slice(0, 2000));
+
     const fromMe: boolean = data?.key?.fromMe ?? false;
     const remoteJid: string | undefined = data?.key?.remoteJid;
     const externalId: string | undefined = data?.key?.id;
