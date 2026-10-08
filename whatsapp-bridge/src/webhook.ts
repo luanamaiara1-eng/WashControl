@@ -90,7 +90,9 @@ async function resolveReply(
       : "Não entendi o pagamento 🤔. Manda assim:\n\n*pagamento funcionário Nome do funcionário, Valor*\n\nEx: pagamento funcionário Carlos, 200";
   }
 
-  return null;
+  // Never leave an authorized sender without any reply at all — silence
+  // looks identical to "broken" from their side. Manda *ajuda* pra ver os comandos.
+  return "🤔 Não reconheci esse comando. Manda *ajuda* pra ver a lista de comandos disponíveis.";
 }
 
 /** The one platform-wide command number: identifies the business purely by
