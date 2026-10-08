@@ -11,7 +11,7 @@ import { checkNewSignups, checkNewSubscriptions } from "./adminNotifications.js"
 // One-off marker to confirm a deploy actually picked up new source instead
 // of reusing a cached Docker layer — visit GET /health and compare this
 // string, or check the startup log line below. Safe to delete later.
-const BUILD_MARKER = "build-2026-10-08-central-debug-1";
+const BUILD_MARKER = "build-2026-10-08-central-debug-2";
 
 const app = express();
 app.use(cors());
