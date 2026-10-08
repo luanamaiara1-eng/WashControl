@@ -101,6 +101,8 @@ async function resolveReply(
  * client conversation — this channel has nothing to do with a business's
  * clients. */
 async function handleCentralMessage(senderPhone: string, message: { type: MessageType; body: string | null }) {
+  console.log(`[central] ${senderPhone}: handleCentralMessage entered (type=${message.type})`);
+
   if (message.type !== "text" || !message.body) {
     console.log(`[central] ${senderPhone}: ignoring non-text message (type=${message.type})`);
     return;

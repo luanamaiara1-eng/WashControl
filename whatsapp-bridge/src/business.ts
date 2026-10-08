@@ -1,5 +1,15 @@
 import { supabaseAdmin } from "./supabaseAdmin.js";
 
+// The Supabase client has no built-in timeout, so a stuck connection (rare,
+// but seen in practice under heavy concurrent load) would otherwise hang a
+// request forever with no log and no error. Fail loudly instead.
+function withTimeout<T>(promise: PromiseLike<T>, label: string, ms = 8000): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
+}
+
 export interface Business {
   user_id: string;
   whatsapp_auto_register_enabled: boolean;
@@ -40,12 +50,11 @@ async function loadBusiness(userId: string): Promise<Business | null> {
 }
 
 export async function findBusinessByAuthorizedPhone(phone: string): Promise<Business | null> {
-  const { data: authorized, error } = await supabaseAdmin
-    .from("whatsapp_authorized_numbers")
-    .select("user_id")
-    .eq("phone", phone)
-    .eq("is_active", true)
-    .maybeSingle();
+  console.log(`[business] looking up whatsapp_authorized_numbers for phone ${phone}...`);
+  const { data: authorized, error } = await withTimeout(
+    supabaseAdmin.from("whatsapp_authorized_numbers").select("user_id").eq("phone", phone).eq("is_active", true).maybeSingle(),
+    "whatsapp_authorized_numbers lookup"
+  ).catch((err) => ({ data: null, error: err as Error }));
 
   if (error) {
     console.log(`[business] whatsapp_authorized_numbers lookup for ${phone} errored:`, error.message);
