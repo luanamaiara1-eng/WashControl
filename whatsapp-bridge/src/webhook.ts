@@ -101,25 +101,41 @@ async function resolveReply(
  * client conversation — this channel has nothing to do with a business's
  * clients. */
 async function handleCentralMessage(senderPhone: string, message: { type: MessageType; body: string | null }) {
-  if (message.type !== "text" || !message.body) return;
+  if (message.type !== "text" || !message.body) {
+    console.log(`[central] ${senderPhone}: ignoring non-text message (type=${message.type})`);
+    return;
+  }
 
   const business = await findBusinessByAuthorizedPhone(senderPhone);
-  if (!business) return;
+  if (!business) {
+    console.log(`[central] ${senderPhone}: no active business_settings/whatsapp_authorized_numbers match for this phone`);
+    return;
+  }
+  console.log(`[central] ${senderPhone}: matched business ${business.user_id} — subscription_active=${business.subscription_active} whatsapp_auto_register_enabled=${business.whatsapp_auto_register_enabled}`);
 
   const centralToken = await getCentralInstanceToken();
-  if (!centralToken) return;
+  if (!centralToken) {
+    console.log(`[central] ${senderPhone}: no central_instance_token saved — is the central number connected?`);
+    return;
+  }
 
   if (!business.subscription_active) {
     const warning = "🔒 Seu acesso ao WashControl está inativo ou expirado. Para continuar usando a Central, renove ou escolha seu plano no painel do WashControl.";
+    console.log(`[central] ${senderPhone}: subscription inactive, sending warning`);
     await evolution.sendText(centralToken, senderPhone, warning);
     return;
   }
 
-  if (!business.whatsapp_auto_register_enabled) return;
+  if (!business.whatsapp_auto_register_enabled) {
+    console.log(`[central] ${senderPhone}: whatsapp_auto_register_enabled is off for this business, ignoring`);
+    return;
+  }
 
   const reply = await resolveReply(business.user_id, business.timezone, senderPhone, message.body);
+  console.log(`[central] ${senderPhone}: resolveReply -> ${reply ? reply.slice(0, 80) : "null"}`);
   if (reply) {
     await evolution.sendText(centralToken, senderPhone, reply);
+    console.log(`[central] ${senderPhone}: reply sent`);
   }
 }
 

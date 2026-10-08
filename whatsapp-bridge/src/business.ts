@@ -47,8 +47,20 @@ export async function findBusinessByAuthorizedPhone(phone: string): Promise<Busi
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !authorized?.user_id) return null;
-  return loadBusiness(authorized.user_id);
+  if (error) {
+    console.log(`[business] whatsapp_authorized_numbers lookup for ${phone} errored:`, error.message);
+    return null;
+  }
+  if (!authorized?.user_id) {
+    console.log(`[business] no active whatsapp_authorized_numbers row for phone ${phone}`);
+    return null;
+  }
+
+  const business = await loadBusiness(authorized.user_id);
+  if (!business) {
+    console.log(`[business] authorized phone ${phone} matched user ${authorized.user_id}, but loadBusiness returned null (missing profiles or business_settings row for that user)`);
+  }
+  return business;
 }
 
 /** Identifies which business owns the Evolution Go instance a webhook fired on — the tenant boundary for *storing* a message, regardless of who sent it. */
