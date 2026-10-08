@@ -124,7 +124,11 @@ export function WhatsAppSettings({ settings, onUpdate }: WhatsAppSettingsProps) 
 
   const handleAddAuthorizedNumber = async () => {
     if (!user) return;
-    const phone = newNumberPhone.replace(/\D/g, "");
+    // Mirror the bridge's toLocalPhone(): a number typed with the "55"
+    // country code must be stored the same way it'll arrive from a real
+    // WhatsApp message, or the match against the sender's phone never hits.
+    const digits = newNumberPhone.replace(/\D/g, "");
+    const phone = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
     if (!phone) {
       toast.error("Informe o telefone (DDD + número).");
       return;
