@@ -72,6 +72,43 @@ export const useAllUsers = () => {
   });
 };
 
+// A referral earns a commission only when the referred business actually
+// becomes a paying customer — in this manually-run SaaS (no payment
+// gateway), that's exactly what recording an extension means: Super Admin
+// clicking "+7/+15/+30/+60 dias" after receiving payment, which always
+// passes both status:"active" and a concrete expiresAt. A plan-only change
+// or a cancel doesn't, so neither creates a commission.
+async function maybeCreateReferralEarning(userId: string, planId: string | null | undefined) {
+  if (!planId) return; // no paid plan resolved (e.g. still on "free") — nothing to pay out
+
+  const { data: profile } = await db.from("profiles").select("referred_by").eq("id", userId).maybeSingle();
+  if (!profile?.referred_by) return;
+
+  const { data: plan } = await db.from("saas_plans").select("price_monthly").eq("id", planId).maybeSingle();
+  const baseAmount = Number(plan?.price_monthly || 0);
+  if (baseAmount <= 0) return;
+
+  const { data: settings } = await db.from("referral_settings").select("commission_percent, commission_mode").eq("id", true).maybeSingle();
+  const percent = Number(settings?.commission_percent ?? 10);
+  const mode = settings?.commission_mode || "first_payment";
+  if (percent <= 0) return;
+
+  const period = mode === "recurring" ? new Date().toISOString().slice(0, 7) : "first";
+  const amount = Math.round(baseAmount * percent) / 100;
+
+  await db.from("referral_earnings").upsert(
+    {
+      referrer_id: profile.referred_by,
+      referred_user_id: userId,
+      base_amount: baseAmount,
+      commission_percent: percent,
+      amount,
+      period,
+    },
+    { onConflict: "referred_user_id,period", ignoreDuplicates: true },
+  );
+}
+
 export const useUpdateUserSubscription = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -90,19 +127,26 @@ export const useUpdateUserSubscription = () => {
       if (expiresAt !== undefined) updates.expires_at = expiresAt;
 
       const { data: current, error: currentError } = await db.from("subscriptions")
-        .select("id").eq("user_id", userId).maybeSingle();
+        .select("id, plan_id").eq("user_id", userId).maybeSingle();
       if (currentError) throw currentError;
+
+      let effectivePlanId: string | null | undefined = "plan_id" in updates ? (updates.plan_id as string | null) : current?.plan_id;
 
       if (current?.id) {
         const { error } = await db.from("subscriptions").update(updates).eq("id", current.id);
         if (error) throw error;
       } else {
+        effectivePlanId = updates.plan_id as string | null | undefined;
         const { error } = await db.from("subscriptions").insert({
           user_id: userId, plan: plan || "free", status: status || "trial",
           started_at: new Date().toISOString(), expires_at: expiresAt ?? null,
           plan_id: updates.plan_id ?? null,
         });
         if (error) throw error;
+      }
+
+      if (status === "active" && expiresAt !== undefined && expiresAt !== null) {
+        await maybeCreateReferralEarning(userId, effectivePlanId);
       }
     },
     onSuccess: () => {

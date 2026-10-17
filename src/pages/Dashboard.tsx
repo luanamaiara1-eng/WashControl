@@ -26,7 +26,8 @@ import {
   RefreshCw,
   Shield,
   HelpCircle,
-  MessageCircle
+  MessageCircle,
+  Gift
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useAdmin";
@@ -41,6 +42,7 @@ import ConfiguracoesPage from "./Configuracoes";
 import LojaPage from "./Loja";
 import ConversasPage from "./Conversas";
 import PagamentosFuncionariosPage from "./PagamentosFuncionarios";
+import IndicacoesPage from "./Indicacoes";
 import { useAppointments, useAppointmentsRealtime } from "@/hooks/useAppointments";
 import { useUpcomingExpenses } from "@/hooks/useFixedExpenses";
 import UserDashboardHome from "./UserDashboardHome";
@@ -76,6 +78,7 @@ const Dashboard = () => {
     { icon: DollarSign, label: "Financeiro", href: "/dashboard/financeiro" },
     { icon: BarChart3, label: "Relatórios", href: "/dashboard/relatorios" },
     { icon: Settings, label: "Configurações", href: "/dashboard/configuracoes" },
+    { icon: Gift, label: "Indique e Ganhe", href: "/dashboard/indicacoes" },
     { icon: HelpCircle, label: "Ajuda", href: "/dashboard/ajuda" },
   ];
 
@@ -118,10 +121,13 @@ const Dashboard = () => {
     if (currentPath === "/dashboard/configuracoes") {
       return <ConfiguracoesPage />;
     }
+    if (currentPath === "/dashboard/indicacoes") {
+      return <IndicacoesPage />;
+    }
     if (currentPath === "/dashboard/ajuda") {
       return <AjudaPage />;
     }
-    
+
     // Default dashboard content
     return <UserDashboardHome />;
   };
@@ -138,6 +144,7 @@ const Dashboard = () => {
     if (currentPath === "/dashboard/pagamentos-funcionarios") return "Pagamentos de Funcionários";
     if (currentPath === "/dashboard/relatorios") return "Relatórios";
     if (currentPath === "/dashboard/configuracoes") return "Configurações";
+    if (currentPath === "/dashboard/indicacoes") return "Indique e Ganhe";
     if (currentPath === "/dashboard/ajuda") return "Central de Ajuda";
     return "Dashboard";
   };

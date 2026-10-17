@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone, QrCode, Unplug, CheckCircle2, Loader2 } from "lucide-react";
+import { Shield, Users, LayoutDashboard, LogOut, Menu, X, Crown, UserCheck, UserX, MoreVertical, RefreshCw, ArrowLeft, DollarSign, Clock3, CalendarClock, Activity, TrendingUp, PlayCircle, Plus, Pencil, Trash2, Upload, Eye, EyeOff, Smartphone, Wifi, MessageSquareText, Phone, QrCode, Unplug, CheckCircle2, Loader2, Gift, FileCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllUsers, useAdminStats, useUpdateUserSubscription, useUpdateUserStatus, SubscriptionPlan, SubscriptionStatus } from "@/hooks/useAdmin";
 import { testEvolutionConnection, getCentralStatus, connectCentral, disconnectCentral, refreshCentralQr, type CentralStatus } from "@/lib/whatsappBridge";
@@ -46,6 +46,12 @@ const Admin = () => {
   const [centralQrCode, setCentralQrCode] = useState<string | null>(null);
   const centralPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const centralQrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [referralSettings, setReferralSettings] = useState({ commission_percent: 10, commission_mode: "first_payment" });
+  const [referralSettingsLoading, setReferralSettingsLoading] = useState(false);
+  const [referralSettingsSaving, setReferralSettingsSaving] = useState(false);
+  const [referralEarnings, setReferralEarnings] = useState<any[]>([]);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralUploadingId, setReferralUploadingId] = useState<string | null>(null);
 
   const loadVideos = async () => {
     setVideoLoading(true);
@@ -193,7 +199,69 @@ const Admin = () => {
     }
   };
 
-  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); };
+  const loadReferralSettings = async () => {
+    setReferralSettingsLoading(true);
+    const { data, error } = await supabase.from("referral_settings").select("*").eq("id", true).maybeSingle();
+    if (error) toast.error("Erro ao carregar config. de indicações: " + error.message);
+    else if (data) setReferralSettings({ commission_percent: Number(data.commission_percent), commission_mode: data.commission_mode });
+    setReferralSettingsLoading(false);
+  };
+  const saveReferralSettings = async () => {
+    setReferralSettingsSaving(true);
+    const { error } = await supabase.from("referral_settings").upsert({ id: true, ...referralSettings });
+    setReferralSettingsSaving(false);
+    if (error) toast.error("Erro ao salvar: " + error.message);
+    else toast.success("Configuração de indicações salva!");
+  };
+
+  const loadReferralEarnings = async () => {
+    setReferralLoading(true);
+    const [{ data: earnings, error }, { data: profiles }, { data: payouts }] = await Promise.all([
+      supabase.from("referral_earnings").select("*").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id, business_name, email"),
+      supabase.from("referral_payout_info").select("*"),
+    ]);
+    if (error) toast.error("Erro ao carregar indicações: " + error.message);
+    else {
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+      const payoutMap = new Map((payouts ?? []).map((p) => [p.user_id, p]));
+      setReferralEarnings((earnings ?? []).map((e) => ({
+        ...e,
+        referrer: profileMap.get(e.referrer_id),
+        referred: profileMap.get(e.referred_user_id),
+        payout: payoutMap.get(e.referrer_id),
+      })));
+    }
+    setReferralLoading(false);
+  };
+
+  const handleUploadProof = async (earningId: string, file: File) => {
+    setReferralUploadingId(earningId);
+    try {
+      const ext = file.name.split(".").pop() || "pdf";
+      const path = `${earningId}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("referral-proofs").upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { error } = await supabase.from("referral_earnings")
+        .update({ status: "paid", proof_url: path, paid_at: new Date().toISOString() })
+        .eq("id", earningId);
+      if (error) throw error;
+      toast.success("Comprovante anexado e comissão marcada como paga!");
+      loadReferralEarnings();
+    } catch (e: any) {
+      toast.error("Erro ao anexar comprovante: " + e.message);
+    } finally {
+      setReferralUploadingId(null);
+    }
+  };
+
+  const handleViewProof = async (path: string) => {
+    const { data, error } = await supabase.storage.from("referral-proofs").createSignedUrl(path, 60);
+    if (error || !data?.signedUrl) { toast.error("Erro ao abrir comprovante."); return; }
+    window.open(data.signedUrl, "_blank");
+  };
+
+  const refresh = () => { refetchUsers(); refetchStats(); loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); loadReferralSettings(); loadReferralEarnings(); };
   const handleLogout = async () => { await signOut(); navigate("/"); };
 
   const planLabel: Record<string,string> = { free:"Gratuito", basic:"Básico", pro:"Pro", premium:"Premium" };
@@ -208,7 +276,7 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus();
+    loadVideos(); loadEvolutionSettings(); loadAuthorizedNumbers(); refreshCentralStatus(); loadReferralSettings(); loadReferralEarnings();
     return () => {
       if (centralPollRef.current) clearInterval(centralPollRef.current);
       if (centralQrRefreshRef.current) clearInterval(centralQrRefreshRef.current);
@@ -222,6 +290,7 @@ const Admin = () => {
     { icon: PlayCircle, label:"Tutoriais", href:"/admin#tutoriais" },
     { icon: Smartphone, label:"Evolution Go", href:"/admin#evolution" },
     { icon: Phone, label:"WhatsApp Central", href:"/admin#whatsapp-central" },
+    { icon: Gift, label:"Indicações", href:"/admin#indicacoes" },
   ];
 
   const commandReference = [
@@ -390,6 +459,63 @@ const Admin = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </section>
+        <section id="indicacoes" className="space-y-6">
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Gift className="w-4 h-4"/>Programa de indicação</CardTitle><p className="text-sm text-muted-foreground">Comissão paga a quem indica, calculada sobre o valor do plano quando o indicado vira cliente pagante. O pagamento em si é feito por você via Pix, fora do sistema — aqui você só registra como pago e anexa o comprovante.</p></CardHeader>
+            <CardContent className="space-y-4 max-w-xl">
+              {referralSettingsLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Comissão (%)</label>
+                    <input type="number" min={0} max={100} step="0.1" className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={referralSettings.commission_percent}
+                      onChange={e=>setReferralSettings({...referralSettings, commission_percent: Number(e.target.value)})}/>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Tipo</label>
+                    <Select value={referralSettings.commission_mode} onValueChange={v=>setReferralSettings({...referralSettings, commission_mode: v})}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="first_payment">Só o primeiro pagamento</SelectItem>
+                        <SelectItem value="recurring">Todo pagamento recorrente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button onClick={saveReferralSettings} disabled={referralSettingsSaving} className="gap-2"><Plus className="w-4 h-4"/>{referralSettingsSaving?"Salvando...":"Salvar"}</Button>
+              </>}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-base">Comissões</CardTitle><p className="text-sm text-muted-foreground">Toda comissão gerada, de quem indicou pra quem indicou e sobre qual pagamento.</p></CardHeader>
+            <CardContent>
+              {referralLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : referralEarnings.length === 0 ? <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Nenhuma comissão gerada ainda.</div> : (
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Indicou</TableHead><TableHead>Indicado</TableHead><TableHead>Chave Pix</TableHead><TableHead>Valor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
+                  {referralEarnings.map((e) => <TableRow key={e.id}>
+                    <TableCell><p className="font-medium">{e.referrer?.business_name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{e.referrer?.email}</p></TableCell>
+                    <TableCell><p className="font-medium">{e.referred?.business_name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{e.referred?.email}</p></TableCell>
+                    <TableCell>{e.payout ? <><p className="text-xs">{e.payout.full_name}</p><p className="text-xs text-muted-foreground">{e.payout.pix_key} ({e.payout.pix_key_type})</p></> : <span className="text-xs text-muted-foreground">Não cadastrou ainda</span>}</TableCell>
+                    <TableCell><p className="font-medium">{money(Number(e.amount))}</p><p className="text-xs text-muted-foreground">{e.commission_percent}% de {money(Number(e.base_amount))}</p></TableCell>
+                    <TableCell>{e.status==="paid" ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-success/10 text-success text-xs"><CheckCircle2 className="w-3 h-3"/>Pago</span> : <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-warning/10 text-warning text-xs">Pendente</span>}</TableCell>
+                    <TableCell className="text-right">
+                      {e.status==="paid" ? (
+                        e.proof_url && <Button variant="ghost" size="sm" onClick={()=>handleViewProof(e.proof_url)} className="gap-1"><FileCheck className="w-4 h-4"/>Ver comprovante</Button>
+                      ) : (
+                        <label className="inline-flex items-center gap-1 text-sm text-primary cursor-pointer hover:underline">
+                          {referralUploadingId===e.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4"/>}
+                          Anexar comprovante e marcar pago
+                          <input type="file" accept="image/*,.pdf" className="hidden" disabled={referralUploadingId===e.id}
+                            onChange={ev=>{ const f = ev.target.files?.[0]; if (f) handleUploadProof(e.id, f); }}/>
+                        </label>
+                      )}
+                    </TableCell>
+                  </TableRow>)}
+                </TableBody></Table></div>
+              )}
             </CardContent>
           </Card>
         </section>

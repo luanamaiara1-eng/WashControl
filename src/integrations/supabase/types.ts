@@ -978,6 +978,8 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          referral_code: string | null
+          referred_by: string | null
           updated_at: string
         }
         Insert: {
@@ -986,6 +988,8 @@ export type Database = {
           email?: string | null
           id: string
           is_active?: boolean
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -994,6 +998,116 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          referral_code?: string | null
+          referred_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      referral_clicks: {
+        Row: {
+          created_at: string
+          id: string
+          referrer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referrer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referrer_id?: string
+        }
+        Relationships: []
+      }
+      referral_earnings: {
+        Row: {
+          amount: number
+          base_amount: number
+          commission_percent: number
+          created_at: string
+          id: string
+          paid_at: string | null
+          period: string
+          proof_url: string | null
+          referred_user_id: string
+          referrer_id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          base_amount: number
+          commission_percent: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          period: string
+          proof_url?: string | null
+          referred_user_id: string
+          referrer_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          base_amount?: number
+          commission_percent?: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          period?: string
+          proof_url?: string | null
+          referred_user_id?: string
+          referrer_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      referral_payout_info: {
+        Row: {
+          cpf_cnpj: string
+          full_name: string
+          pix_key: string
+          pix_key_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cpf_cnpj: string
+          full_name: string
+          pix_key: string
+          pix_key_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cpf_cnpj?: string
+          full_name?: string
+          pix_key?: string
+          pix_key_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      referral_settings: {
+        Row: {
+          commission_mode: string
+          commission_percent: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          commission_mode?: string
+          commission_percent?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          commission_mode?: string
+          commission_percent?: number
+          id?: boolean
           updated_at?: string
         }
         Relationships: []

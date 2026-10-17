@@ -7,6 +7,7 @@ import { ArrowRight, Eye, EyeOff, CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import logoImage from "@/assets/logo.png";
+import { captureReferralFromUrl, getStoredRefCode, clearStoredRefCode } from "@/lib/referral";
 
 const Registro = () => {
   const navigate = useNavigate();
@@ -27,6 +28,10 @@ const Registro = () => {
     }
   }, [user, navigate]);
 
+  useEffect(() => {
+    captureReferralFromUrl();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -37,7 +42,13 @@ const Registro = () => {
 
     setLoading(true);
 
-    const { error } = await signUp(formData.email, formData.password);
+    const refCode = getStoredRefCode();
+    const { error } = await signUp(formData.email, formData.password, {
+      business_name: formData.businessName,
+      name: formData.name,
+      phone: formData.phone,
+      ...(refCode ? { ref_code: refCode } : {}),
+    });
 
     if (error) {
       if (error.message.includes("already registered")) {
@@ -47,6 +58,7 @@ const Registro = () => {
       }
       setLoading(false);
     } else {
+      clearStoredRefCode();
       toast.success("Conta criada com sucesso!");
     }
   };

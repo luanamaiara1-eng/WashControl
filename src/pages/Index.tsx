@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { captureReferralFromUrl } from "@/lib/referral";
 import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { PainPointsSection } from "@/components/landing/PainPointsSection";
@@ -13,6 +15,10 @@ import { Footer } from "@/components/landing/Footer";
 import { AnimatedSection } from "@/components/landing/AnimatedSection";
 
 const Index = () => {
+  useEffect(() => {
+    captureReferralFromUrl();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
