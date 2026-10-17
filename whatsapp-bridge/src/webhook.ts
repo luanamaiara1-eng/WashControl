@@ -149,16 +149,27 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     const { instanceName } = req.params;
     const payload = req.body?.data ?? req.body;
 
-    console.log(`Webhook event for instance ${instanceName}:`, JSON.stringify(req.body).slice(0, 2000));
-
     // Only "Message" events carry a chat message — CONNECTION/QRCODE events
     // (also subscribed, for the connect flow) use a different shape and
     // aren't relevant here.
     if (payload?.event && payload.event !== "Message") return;
 
     const info = payload?.Info ?? {};
-    const fromMe: boolean = info?.IsFromMe ?? false;
     const remoteJid: string | undefined = info?.Chat || info?.Sender;
+
+    // Only ever care about direct 1:1 chats. Group chats, channels/
+    // newsletters and status broadcasts are pure noise here — WashControl
+    // has no business logic for any of them — and a connected number
+    // (especially the shared central one) can be a member of many groups
+    // unrelated to WashControl. Skip *before* logging the payload: a single
+    // group media message can be hundreds of KB of base64, and in practice
+    // that noise was drowning out the one-line logs for real messages,
+    // making them effectively impossible to find in the log stream.
+    if (!remoteJid || !remoteJid.endsWith("@s.whatsapp.net") || info?.IsGroup) return;
+
+    console.log(`Webhook event for instance ${instanceName}:`, JSON.stringify(req.body).slice(0, 1000));
+
+    const fromMe: boolean = info?.IsFromMe ?? false;
     const externalId: string | undefined = info?.ID;
     const pushName: string | undefined = info?.PushName;
     const message = extractMessage(info);
@@ -168,7 +179,7 @@ webhookRouter.post("/evolution/:instanceName", async (req, res) => {
     // Evolution Go echoes our own sends back here too, and there's no
     // reliable way yet to tell that apart from something typed on the
     // linked phone itself without risking duplicate chat rows.
-    if (fromMe || !remoteJid || !message) return;
+    if (fromMe || !message) return;
 
     const senderPhone = fromRemoteJid(remoteJid);
 
